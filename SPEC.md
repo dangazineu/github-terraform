@@ -103,7 +103,7 @@ terraform-github-sdk-module/
 │
 └── setup/                              # Bootstrap setup scripts (run once)
     ├── service-accounts.sh             # Creates terraform-automation service account
-    ├── secrets.sh                      # Creates github-token secret for Terraform
+    ├── secrets.sh                      # Creates github-token and github-app-id secrets
     └── triggers.sh                     # Creates triggers for this infrastructure repo
 ```
 
@@ -212,16 +212,11 @@ This script will:
 - Grant necessary IAM permissions for Terraform operations
 - Grant Secret Manager Admin permissions to the Cloud Build service account (required for GitHub connection)
 
-#### 3. Create GitHub Token Secret
-```bash
-./setup/secrets.sh $PROJECT_ID $GITHUB_TOKEN
-```
+#### 3. Connect Cloud Build to GitHub and Create Secrets
 
-#### 4. Connect Cloud Build to GitHub (Required - One-Time Setup)
+Cloud Build needs access to your GitHub repositories through the **1st generation GitHub App** integration. This is a **one-time setup per GitHub organization**. During this process, you'll get the GitHub App ID needed for the secrets.
 
-Cloud Build needs access to your GitHub repositories through the **1st generation GitHub App** integration. This is a **one-time setup per GitHub organization**.
-
-**Connect GitHub via Cloud Console:**
+**Step 3a: Connect GitHub via Cloud Console**
 
 1. Go to: https://console.cloud.google.com/cloud-build/triggers/connect?project=$PROJECT_ID
 2. Select **"GitHub (Cloud Build GitHub App)"** - NOT "GitHub (Cloud Build GitHub App 2nd gen)"
@@ -236,6 +231,37 @@ Cloud Build needs access to your GitHub repositories through the **1st generatio
 After setup, verify your repository appears in the 1st gen repositories list:
 - Go to: https://console.cloud.google.com/cloud-build/repositories/1st-gen?project=$PROJECT_ID
 - You should see your repository listed there
+
+**Step 3b: Get GitHub App ID and Create Secrets**
+
+After connecting GitHub, get your App ID and create the required secrets:
+
+```bash
+# 1. Get your GitHub App ID from GitHub (easiest method for 1st gen connections):
+# Go to GitHub → Settings → Integrations → GitHub Apps → Google Cloud Build → Configure
+# The URL will be: https://github.com/settings/installations/INSTALLATION_ID
+# The number at the end is your GitHub App installation ID (this is what Cloud Build needs)
+
+# For your organization dg-ghtest, go to:
+# https://github.com/organizations/dg-ghtest/settings/installations
+# Click "Configure" on Google Cloud Build app, and check the URL
+
+export GITHUB_APP_ID="123456"  # Replace with the installation ID from the URL
+
+# Verify the App ID
+echo "GitHub App ID (Installation ID): $GITHUB_APP_ID"
+
+# 2. Create both secrets (GitHub token and App ID):
+./setup/secrets.sh $PROJECT_ID $GITHUB_TOKEN $GITHUB_APP_ID
+```
+
+**Finding Your GitHub App Installation ID:**
+- **GitHub UI (Recommended for 1st gen)**: Go to GitHub → Settings → Integrations → GitHub Apps → Google Cloud Build → Configure. The installation ID is in the URL.
+- **Organization**: For org `dg-ghtest`, go to https://github.com/organizations/dg-ghtest/settings/installations
+- **Personal**: Go to https://github.com/settings/installations  
+- **Important**: Use the installation ID number from the URL, not the app name
+
+**Note**: For 1st gen GitHub connections, the "App ID" that Cloud Build needs is actually the GitHub App **installation ID**, which you get from the GitHub settings URL.
 
 **Repository Access Strategy:**
 
@@ -264,7 +290,7 @@ After setup, verify your repository appears in the 1st gen repositories list:
 - 1st gen connections create **global** triggers (no region specification needed)
 - The connection will work for both the infrastructure repository and all SDK repositories managed by Terraform
 
-#### 5. Create Infrastructure Management Triggers
+#### 4. Create Infrastructure Management Triggers
 
 After connecting the GitHub App, use Terraform to create the Cloud Build triggers:
 
