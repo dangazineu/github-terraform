@@ -109,9 +109,19 @@ terraform-github-sdk-module/
 
 ## Setup Instructions
 
-This setup has two levels:
-1. **Bootstrap Setup** (one-time): Use `setup/` scripts to create the infrastructure management service account and triggers
-2. **SDK Repository Automation** (ongoing): Terraform automatically creates SDK repository resources
+This setup follows a clear progression:
+
+## 🏗️ **Production Workflow** (Automated)
+1. **Bootstrap Setup** (one-time): Create infrastructure management foundation  
+2. **GitHub App Integration** (one-time): Create dedicated app for SDK automation
+3. **Automatic Deployment**: Push code changes → Cloud Build automatically deploys SDK repositories
+
+## 🔧 **Manual Testing Workflow** (Optional)
+1. **Bootstrap Setup** (one-time): Same as production
+2. **GitHub App Integration** (one-time): Same as production
+3. **Manual SDK Deployment**: Test locally before relying on automation  
+
+**🚀 Quick Start**: Complete sections 1, 2, then push changes to trigger automatic deployment.
 
 ### Prerequisites (Brand New Setup)
 
@@ -193,9 +203,9 @@ Known Limitations (as of 2024):
    during terraform apply, you may need to use a classic PAT
  - GitHub App installation management specifically has known issues with fine-grained PATs
 
-### Bootstrap Setup (Run Once)
+### 1. Bootstrap Setup (Run Once)
 
-#### 1. Set Environment Variables
+#### 1.1. Set Environment Variables
 ```bash
 export PROJECT_ID="your-project-id"
 export GITHUB_OWNER="your-github-org"
@@ -203,7 +213,7 @@ export GITHUB_TOKEN="your-github-token"
 export REPO_NAME="terraform-github-sdk-module"  # Must match the repo name from step 0
 ```
 
-#### 2. Create Infrastructure Management Service Account
+#### 1.2. Create Infrastructure Management Service Account
 ```bash
 ./setup/service-accounts.sh $PROJECT_ID
 ```
@@ -212,7 +222,7 @@ This script will:
 - Grant necessary IAM permissions for Terraform operations
 - Grant Secret Manager Admin permissions to the Cloud Build service account (required for GitHub connection)
 
-#### 3. Connect Cloud Build to GitHub and Create Secrets
+#### 1.3. Connect Cloud Build to GitHub and Create Secrets
 
 Cloud Build needs access to your GitHub repositories through the **1st generation GitHub App** integration. This is a **one-time setup per GitHub organization**. During this process, you'll get the GitHub App ID needed for the secrets.
 
@@ -290,7 +300,7 @@ echo "GitHub App ID (Installation ID): $GITHUB_APP_ID"
 - 1st gen connections create **global** triggers (no region specification needed)
 - The connection will work for both the infrastructure repository and all SDK repositories managed by Terraform
 
-#### 4. Create Infrastructure Management Triggers
+#### 1.4. Create Infrastructure Management Triggers
 
 After connecting the GitHub App, use Terraform to create the Cloud Build triggers:
 
@@ -311,238 +321,211 @@ This script will:
 - If you get "Invalid argument" errors, verify the service account exists and the GitHub repository is visible in the 1st gen list
 - The Terraform configuration in `setup/triggers.tf` does NOT use `location` parameter for 1st gen triggers
 
-### SDK Repository Management (Automated)
+### 2. GitHub App Integration (One-Time Setup)
 
-#### 1. Initialize Terraform
-```bash
-terraform init
-```
+**⚠️ Important**: This is a **one-time setup** that enables GitHub App authentication for all SDK repositories. You need to complete this **before** deploying SDK repositories so they are created with working automation.
 
-### 2. Set Required Variables (using bootstrap variables)
-```bash
-export TF_VAR_github_token="$GITHUB_TOKEN"
-export TF_VAR_gcp_project_id="$PROJECT_ID"
-export TF_VAR_github_owner="$GITHUB_OWNER"
-```
+**Why a Dedicated GitHub App is Required:**
+- SDK automation scripts need **Pull requests: Write** permission to create/close PRs
+- Cloud Build GitHub App (ID: typically 8-digit number like 80495728) only has **Pull requests: Read** permission (for triggers)  
+- The SDK Automation GitHub App (ID: your NEW_APP_ID like 1770057) has write permissions for PR automation
+- These are two separate apps serving different purposes
 
-### 3. Apply Configuration
-```bash
-terraform plan
-terraform apply
-```
-
-### 4. GitHub App Setup and Secret Population
-
-The Terraform will create empty secret containers. You need to create a GitHub App and populate the secrets:
-
-**Note**: Cloud Build triggers, Cloud Scheduler jobs, Pub/Sub topics, service accounts, and secret containers are all created automatically by Terraform. Only GitHub App creation and secret population remain manual for security reasons.
-
-## Running the Demo
-
-### Prerequisites
-
-1. **GitHub Personal Access Token**: Create a token with `repo` and `admin:org` permissions
-2. **Google Cloud Project**: Have a GCP project with Cloud Build and Secret Manager APIs enabled
-3. **Terraform**: Install Terraform >= 1.0
-
-### Step 1: Set Up Variables (reuse bootstrap variables)
-
-Create a `terraform.tfvars` file:
-```hcl
-github_token    = "your-github-token-here"
-github_owner    = "your-sdk-org"
-gcp_project_id  = "your-sdk-project-id"
-```
-
-Or export as environment variables (using bootstrap variables from earlier):
-```bash
-export TF_VAR_github_token="$GITHUB_TOKEN"
-export TF_VAR_github_owner="$GITHUB_OWNER"
-export TF_VAR_gcp_project_id="$PROJECT_ID"
-export TF_VAR_github_app_id="YOUR_GITHUB_APP_ID"
-```
-
-### Step 2: Initialize and Apply
+#### 2.1. Create Dedicated GitHub App
 
 ```bash
-# Initialize Terraform
-terraform init
-
-# Review the plan
-terraform plan -var-file="terraform.tfvars"
-
-# Apply the configuration
-terraform apply -var-file="terraform.tfvars"
-```
-
-### Step 3: Set Up Google Cloud Resources
-
-After applying, set up GitHub App secrets:
-
-```bash
-# View the setup commands
-terraform output github_app_setup_commands
-
-# View the automatically created infrastructure
-terraform output infrastructure_summary
-
-# View repository details with trigger IDs and scheduler jobs
-terraform output repository_summary
-```
-
-### Step 3.5: Create Infrastructure Management Triggers (Now that repo exists)
-
-After Terraform creates the infrastructure repository, now create the Cloud Build triggers:
-
-```bash
-# Connect your GitHub account to Cloud Build (if not already done)
-# Go to: https://console.cloud.google.com/cloud-build/triggers/connect?project=$PROJECT_ID
-# Choose "GitHub (Cloud Build GitHub App)" and authorize access to your organization
-
-# Now create the triggers for the infrastructure repository
-./setup/triggers.sh $PROJECT_ID $GITHUB_OWNER $REPO_NAME
-
-# Verify triggers were created
-gcloud builds triggers list --project=$PROJECT_ID
-```
-
-**Note**: If the trigger creation fails with "Repository not found", you may need to:
-1. Go to Cloud Build > Triggers > Connect Repository
-2. Connect your infrastructure repository manually first
-3. Then run the trigger script
-
-### Step 4: Create GitHub App and Add Secrets
-
-After running `terraform apply`, you'll need to create a GitHub App and populate the secret values:
-
-#### 4a. Create GitHub App (One-Time)
-```bash
-# Create GitHub App using manifest flow (manual step for now)
+# 1. Create new GitHub App specifically for SDK automation
 # Go to GitHub → Settings → Developer settings → GitHub Apps → New GitHub App
-#
+
 # App Settings:
-# - Name: "SDK Automation for ${GITHUB_OWNER}"
+# - Name: "SDK Automation for ${GITHUB_OWNER}"  
 # - Homepage URL: "https://github.com/${GITHUB_OWNER}"
 # - Webhook URL: "https://example.com/webhook" (unused but required)
-#
-# Permissions:
-# - Repository permissions → Contents: Write
-# - Repository permissions → Pull requests: Write
-# - Repository permissions → Metadata: Read
-#
-# Save the following values:
-# - App ID (numeric, e.g., 123456)
-# - Private Key (download the .pem file)
+
+# Required Permissions:
+# - Repository permissions → Contents: Write (clone, create files, push branches)
+# - Repository permissions → Pull requests: Write (create/close PRs)  
+# - Repository permissions → Metadata: Read (get repo info, default branch)
+
+# 2. After creation, you'll see: "Registration successful. You must generate a private key in order to install your GitHub App."
+
+# 3. Generate Private Key:
+# - Click "Generate a private key" button
+# - Download the .pem file (e.g., sdk-automation-for-dg-ghtest.2025-08-12.private-key.pem)
+# - Save the App ID displayed on the page (e.g., 1770057)
+
+export NEW_APP_ID="1770057"  # Replace with your actual App ID
 ```
 
-#### 4b. Install App on Repositories
+#### 2.2. Install App on Organization
+
 ```bash
-# Install the GitHub App on each SDK repository
-# Go to GitHub → Settings → Developer settings → GitHub Apps → "Your App" → Install App
-# Select your organization and choose repositories:
-# - python-sdk
-# - go-sdk
-# - databases-sdk
-# - genai-sdk
-#
-# Note the installation ID for each repo (visible in URL after installation)
+# 1. Install the GitHub App on your organization  
+# - On the GitHub App page, click "Install App" in left sidebar
+# - Select your organization (e.g., dg-ghtest)
+# - Choose "All repositories" (recommended for full automation)
+# - Click "Install"
+
+# 2. Installation is complete - no need to manually note installation ID
+# The automation scripts will automatically discover installation IDs for each repository
 ```
 
-#### 4c. Add Secret Values (Automated Helper)
+#### 2.3. Add Private Key to Secret Manager
+
 ```bash
-# Use the helper script to automatically discover installation IDs and generate commands
-./modules/github-repo-with-cloudbuild/templates/installation-helper.sh generate-secrets $TF_VAR_github_app_id your-private-key.pem $PROJECT_ID "python-sdk go-sdk databases-sdk genai-sdk"
+# Add the GitHub App private key (shared across all SDK repos)
+# Replace the path with where you downloaded the private key file
+cat sdk-automation-for-dg-ghtest.2025-08-12.private-key.pem | gcloud secrets versions add github-app-private-key --data-file=- --project=$PROJECT_ID
 
-# Or manually add secrets:
-# 1. Add GitHub App private key (shared secret)
-cat your-app-private-key.pem | gcloud secrets versions add github-app-private-key --data-file=- --project=$PROJECT_ID
-
-# 2. Find installation IDs using helper
-./modules/github-repo-with-cloudbuild/templates/installation-helper.sh summary $TF_VAR_github_app_id your-private-key.pem
-
-# 3. Add installation IDs (replace with actual IDs from step 2)
-echo -n "123456789" | gcloud secrets versions add python-sdk-installation-id --data-file=- --project=$PROJECT_ID
-echo -n "123456790" | gcloud secrets versions add go-sdk-installation-id --data-file=- --project=$PROJECT_ID
-echo -n "123456791" | gcloud secrets versions add databases-sdk-installation-id --data-file=- --project=$PROJECT_ID
-echo -n "123456792" | gcloud secrets versions add genai-sdk-installation-id --data-file=- --project=$PROJECT_ID
+# Note: Do NOT commit the private key file to git
+echo "*.private-key.pem" >> .gitignore
 ```
 
-**Security Benefits**: Each repository gets repository-scoped tokens that automatically expire in 1 hour and cannot access other repositories.
+#### 2.4. Verify GitHub App Setup
 
-### Expected Results
+```bash
+# Test that the private key was added successfully
+gcloud secrets versions access latest --secret="github-app-private-key" --project="$PROJECT_ID" | head -1
 
-This will create four SDK repositories:
+# Should return: -----BEGIN PRIVATE KEY-----
 
-1. **python-sdk repository**:
-   - Demo: Runs every 5 minutes (Production: 2:00 AM EST weekly)
-   - Uses `python_sdk` secret from Secret Manager
-   - Has specific CODEOWNERS for Python team, SDK team, and docs team
-   - Uses auto-created `python-sdk-sa` service account
+# Note: Installation ID secrets will be automatically populated by the SDK automation scripts
+# when they first run for each repository
 
-2. **go-sdk repository**:
-   - Demo: Runs every 5 minutes (Production: 2:30 AM EST weekly)
-   - Uses `go_sdk` secret from Secret Manager
-   - Has specific CODEOWNERS for Go team, SDK team, and docs team
-   - Uses auto-created `go-sdk-sa` service account
+# Update your environment variables to use both GitHub App IDs
+export TF_VAR_github_app_id="80495728"  # Cloud Build GitHub App ID
+export TF_VAR_sdk_automation_github_app_id="1770057"  # SDK Automation GitHub App ID
+```
 
-3. **databases-sdk repository**:
-   - Demo: Runs every 5 minutes (Production: 1:30 AM PST weekly)
-   - Uses `databases_sdk` secret from Secret Manager
-   - Has specific CODEOWNERS for database team and SDK team
-   - Uses auto-created `databases-sdk-sa` service account
+### 3. SDK Repository Deployment (Manual Testing)
 
-4. **genai-sdk repository**:
-   - Demo: Runs every 5 minutes (Production: 3:00 AM EST weekly)
-   - Uses `genai_sdk` secret from Secret Manager
-   - Has specific CODEOWNERS for AI team and docs team
-   - Uses auto-created `genai-sdk-sa` service account
+**⚠️ Important**: This section is for **manual testing only**. In production, these steps are **automatically executed** by the Cloud Build triggers created in the Bootstrap section when you push changes to the main branch.
 
-All SDK repositories will include:
-- Cloud Build configuration (`cloudbuild.yaml`)
-- Demo automation script (`scripts/update.sh`)
-- CODEOWNERS protection for all CI/CD files
-- Branch protection on the main branch
-- **Automated Cloud Build triggers** (created by Terraform)
-- **Automated Cloud Scheduler jobs** (created by Terraform, demo: every 5 minutes)
-- **Automated Pub/Sub topics** (created by Terraform)
-- **Automated service accounts** (created by Terraform with appropriate permissions)
+**When to use this section**:
+- Testing the setup locally before relying on automation
+- Troubleshooting issues with the automated pipeline
+- Understanding what the `cloudbuild.yaml` does behind the scenes
 
-### Cleanup
+**For production use**: Simply push your changes to the main branch, and Cloud Build will automatically execute these steps.
+
+#### 3.1. Set Required Variables
+```bash
+# Use the same variables from bootstrap setup
+export TF_VAR_github_token="$GITHUB_TOKEN"
+export TF_VAR_gcp_project_id="$PROJECT_ID"
+export TF_VAR_github_owner="$GITHUB_OWNER"
+export TF_VAR_github_app_id="80495728"  # Cloud Build GitHub App ID
+export TF_VAR_sdk_automation_github_app_id="1770057"  # SDK Automation GitHub App ID
+```
+
+#### 3.2. Deploy SDK Infrastructure
+```bash
+# Validate formatting
+terraform fmt -check=true -diff=true
+
+# Initialize with backend (created during bootstrap)
+terraform init
+
+# Plan the SDK repository deployment
+terraform plan -out=main.tfplan
+
+# Review what will be created
+terraform show main.tfplan
+
+# Deploy the SDK repositories
+terraform apply main.tfplan
+```
+
+#### 3.3. Review Created Resources
+```bash
+# View setup commands for next steps
+terraform output github_app_setup_commands
+
+# Check what was created
+gcloud secrets list --project=$PROJECT_ID
+curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/orgs/$GITHUB_OWNER/repos" | grep '"name"'
+```
+
+**What Gets Created**:
+- 4 GitHub SDK repositories (python-sdk, go-sdk, databases-sdk, genai-sdk)
+- Repository files (cloudbuild.yaml, scripts, CODEOWNERS)
+- Service accounts for each repository
+- Secret Manager containers (**now populated** with GitHub App secrets from step 2)
+- Pub/Sub topics for Cloud Build triggers
+- **Self-contained triggers**: Cloud Build triggers with inline configurations that clone public repositories directly (no GitHub App connection required for Cloud Build)
+- **Working automation**: Repositories are created with functional PR automation
+
+### 4. Verify Complete Setup
+
+After completing all steps, verify your SDK automation is working:
+
+#### 4.1. Check Infrastructure Status
+```bash
+# Verify all repositories exist
+curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/orgs/$GITHUB_OWNER/repos" | grep '"name"' | grep sdk
+
+# Check Cloud Build triggers (including infrastructure triggers from bootstrap)
+gcloud builds triggers list --project=$PROJECT_ID
+
+# Verify all secrets are populated
+gcloud secrets list --project=$PROJECT_ID | grep -E "(github-app|installation-id)"
+```
+
+#### 4.2. Test SDK Repository Automation
+```bash
+# Trigger a manual build to test (optional)
+gcloud builds triggers run python-sdk-weekly-trigger --project=$PROJECT_ID
+
+# Check build history
+gcloud builds list --project=$PROJECT_ID --limit=5
+
+# Monitor scheduler jobs (demo: trigger every 5 minutes)
+gcloud scheduler jobs list --project=$PROJECT_ID
+```
+
+## Final Architecture
+
+You now have a complete SDK automation system with:
+
+**🏗️ Infrastructure Management**:
+- Self-updating infrastructure via Cloud Build triggers on this repo
+- Terraform backend in GCS with state management
+- Automated service account management
+
+**📦 SDK Repositories** (4 repositories created):
+- **python-sdk**: Automated builds every 5 minutes (demo) / 2:00 AM EST weekly (production)
+- **go-sdk**: Automated builds every 5 minutes (demo) / 2:30 AM EST weekly (production)  
+- **databases-sdk**: Automated builds every 5 minutes (demo) / 1:30 AM PST weekly (production)
+- **genai-sdk**: Automated builds every 5 minutes (demo) / 3:00 AM EST weekly (production)
+
+**🔐 Security Features**:
+- GitHub App authentication with short-lived (1-hour) tokens
+- Repository-scoped access (each SDK can only access itself)
+- CODEOWNERS protection on all CI/CD files
+- Dedicated service accounts per repository
+- Branch protection rules (requires GitHub Pro for private repos)
+
+**⚙️ Automation Components**:
+- Cloud Build configurations in each repository
+- Cloud Scheduler jobs for automated execution
+- Pub/Sub topics for trigger communication
+- Helper scripts for token management and health checks
+
+---
+
+## Cleanup
 
 To remove all created resources:
 ```bash
-terraform destroy -var-file="terraform.tfvars"
+# Remove SDK repositories and infrastructure
+terraform destroy
+
+# Remove bootstrap infrastructure (optional)
+cd setup/
+terraform destroy
 ```
 
-## Self-Managing Infrastructure Setup
-
-For the repository containing this module itself, you need to manually create the Cloud Build triggers for self-management:
-
-```bash
-# Create the trigger for the SDK module repository (main branch)
-gcloud builds triggers create github \
-  --repo-name=$REPO_NAME \
-  --repo-owner=$GITHUB_OWNER \
-  --branch-pattern=^main$ \
-  --build-config=cloudbuild.yaml \
-  --name=terraform-sdk-module-auto-apply \
-  --description="Auto-apply Terraform changes for SDK repository management module" \
-  --service-account=terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com \
-  --project=$PROJECT_ID
-
-# Also create trigger for pull requests (plan only)
-gcloud builds triggers create github \
-  --repo-name=$REPO_NAME \
-  --repo-owner=$GITHUB_OWNER \
-  --pull-request-pattern=^main$ \
-  --build-config=cloudbuild-pr.yaml \
-  --name=terraform-sdk-module-pr-plan \
-  --description="Terraform plan for SDK repository management pull requests" \
-  --service-account=terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com \
-  --project=$PROJECT_ID
-```
-
-**Note**: These triggers are only needed for the infrastructure management repository itself. All SDK repository triggers are created automatically by Terraform.
+**Note**: This will delete all SDK repositories, service accounts, secrets, and triggers. Use with caution.
 
 ## Authentication Architecture
 
@@ -617,71 +600,6 @@ INSTALLATION_TOKEN=$(generate_token_for_installation_id 456)  # Only works for g
 - **Permission-limited**: Only contents:write + pull_requests:write
 - **Automatic rotation**: New token generated for each build
 
-### Manual Infrastructure Management Service Account Setup
-
-**Note**: This is only needed once for the infrastructure management. Repository-specific service accounts are created automatically.
-
-Create the service account for Terraform automation:
-
-```bash
-# Create service account for SDK Terraform automation
-gcloud iam service-accounts create terraform-automation \
-  --display-name="SDK Terraform Automation Service Account" \
-  --description="Service account for automated SDK repository Terraform deployments" \
-  --project=$PROJECT_ID
-
-# Grant necessary permissions
-SA_EMAIL="terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com"
-
-# Cloud Build permissions
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/cloudbuild.builds.builder"
-
-# Secret Manager permissions (to read GitHub token)
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/secretmanager.secretAccessor"
-
-# Storage permissions (for Terraform state)
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/storage.admin"
-
-# IAM permissions (to manage service accounts created by the module)
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/iam.serviceAccountAdmin"
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/resourcemanager.projectIamAdmin"
-```
-
-## Secret Setup
-
-Store the GitHub token in Secret Manager:
-
-```bash
-# Create secret for GitHub token
-echo "$GITHUB_TOKEN" | gcloud secrets create github-token \
-  --data-file=- \
-  --project=$PROJECT_ID
-
-# Grant access to the service account
-gcloud secrets add-iam-policy-binding github-token \
-  --member="serviceAccount:terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor" \
-  --project=$PROJECT_ID
-```
-
-Now when you push changes to the main branch, Cloud Build will automatically:
-1. Validate your Terraform syntax
-2. Plan the changes
-3. Apply the changes to create/update SDK GitHub repositories
-4. Output the results and next steps for manual GCP setup
-
----
 
 ## Questions and Answers
 
@@ -705,11 +623,20 @@ A: Success metrics include:
 
 **Q: How does the automated infrastructure creation work?**
 A: The module creates all required infrastructure automatically through Terraform:
-- **Cloud Build Triggers**: Automatically created for each SDK repository
+- **Cloud Build Triggers**: Automatically created for each SDK repository with inline build configurations
+- **Self-Contained Approach**: Triggers clone public repositories directly without requiring GitHub App connections to Cloud Build
 - **Cloud Scheduler Jobs**: Automatically configured for weekly execution
 - **Pub/Sub Topics**: Automatically created for trigger communication
 - **Full Integration**: All components are properly linked with dependencies
 The only manual step remaining is creating secrets in Secret Manager for security reasons.
+
+**Q: How do the Cloud Build triggers work without repository connections?**
+A: The triggers use an innovative approach:
+- **Inline Build Configuration**: Instead of referencing external `cloudbuild.yaml` files, triggers contain embedded build steps
+- **Public Repository Cloning**: Build steps directly clone public GitHub repositories using standard git clone
+- **GitHub App Authentication**: Scripts within the cloned repository handle GitHub App token generation for API operations
+- **No Cloud Build GitHub Connection Required**: Eliminates the need to connect SDK repositories to Cloud Build's GitHub integration
+- **Simplified Management**: New repositories work immediately without manual Cloud Build repository connections
 
 **Q: How should the main.tf be customized for production use?**
 A: The main.tf contains example repositories that should be replaced with your actual repositories. Update the repository configurations in the `locals.repositories` block with your real repository names, descriptions, service accounts, and team assignments.

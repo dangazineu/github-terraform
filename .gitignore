@@ -37,4 +37,4 @@ terraform.rc
 .idea/
 *.swp
 *.swo
-*~
+*~*.private-key.pem

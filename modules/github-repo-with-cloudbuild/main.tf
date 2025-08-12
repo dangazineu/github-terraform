@@ -34,7 +34,7 @@ resource "google_secret_manager_secret_iam_member" "repo_sa_private_key_access" 
   member    = "serviceAccount:${google_service_account.repo_sa.email}"
 }
 
-# Grant Secret Manager access to repository-specific installation ID
+# Grant Secret Manager access to repository-specific installation ID (read)
 resource "google_secret_manager_secret_iam_member" "repo_sa_installation_access" {
   project   = var.gcp_project_id
   secret_id = local.installation_id_secret_name
@@ -42,11 +42,19 @@ resource "google_secret_manager_secret_iam_member" "repo_sa_installation_access"
   member    = "serviceAccount:${google_service_account.repo_sa.email}"
 }
 
+# Grant Secret Manager access to repository-specific installation ID (write)
+resource "google_secret_manager_secret_iam_member" "repo_sa_installation_writer" {
+  project   = var.gcp_project_id
+  secret_id = local.installation_id_secret_name
+  role      = "roles/secretmanager.secretVersionAdder"
+  member    = "serviceAccount:${google_service_account.repo_sa.email}"
+}
+
 # Create the GitHub repository
 resource "github_repository" "repo" {
   name        = var.repo_name
   description = var.repo_description
-  visibility  = "private"
+  visibility  = "public"
 
   # Enable issues and wiki if needed
   has_issues = true
@@ -113,6 +121,7 @@ resource "github_repository_file" "cloudbuild_config" {
     github_app_id                     = var.github_app_id
     repo_name                         = var.repo_name
     github_owner                      = var.github_owner
+    service_account_email             = google_service_account.repo_sa.email
   })
 
   commit_message = "Add Cloud Build configuration via Terraform"
@@ -179,19 +188,43 @@ resource "github_repository_file" "health_check_script" {
 resource "google_cloudbuild_trigger" "repo_trigger" {
   project     = var.gcp_project_id
   name        = "${var.repo_name}-weekly-trigger"
-  description = "Weekly scheduled build for ${var.repo_name} SDK"
+  description = "Scheduled build trigger for ${var.repo_name} SDK"
 
-  github {
-    owner = var.github_owner
-    name  = var.repo_name
-    push {
-      branch = "^main$"
+  # Use Pub/Sub trigger with inline build configuration
+  pubsub_config {
+    topic = var.pubsub_topic_name
+  }
+
+  # Simple inline build that clones the repository and runs the update script
+  build {
+    step {
+      name = "gcr.io/cloud-builders/git"
+      entrypoint = "bash"
+      args = ["-c", <<-EOF
+        # Clone the public repository
+        git clone https://github.com/${var.github_owner}/${var.repo_name}.git /workspace/repo
+        cd /workspace/repo
+        
+        # Set environment variables for the scripts (matching update.sh expectations)
+        export GITHUB_APP_ID="${var.github_app_id}"
+        export GITHUB_OWNER="${var.github_owner}"
+        export GITHUB_REPOSITORY="${var.github_owner}/${var.repo_name}"
+        export PROJECT_ID="${var.gcp_project_id}"
+        export GITHUB_APP_PRIVATE_KEY_SECRET="${var.github_app_private_key_secret_name}"
+        export INSTALLATION_ID_SECRET="${local.installation_id_secret_name}"
+        
+        # Execute the repository's update script
+        bash scripts/update.sh
+        EOF
+      ]
+    }
+    
+    options {
+      logging = "CLOUD_LOGGING_ONLY"
     }
   }
 
-  filename = "cloudbuild.yaml"
-
-  service_account = google_service_account.repo_sa.email
+  service_account = "projects/${var.gcp_project_id}/serviceAccounts/${google_service_account.repo_sa.email}"
 
   depends_on = [
     github_repository_file.cloudbuild_config,

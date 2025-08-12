@@ -47,7 +47,12 @@ variable "scheduler_region" {
 }
 
 variable "github_app_id" {
-  description = "GitHub App ID (numeric)"
+  description = "Cloud Build GitHub App ID (for connecting repositories to Cloud Build)"
+  type        = string
+}
+
+variable "sdk_automation_github_app_id" {
+  description = "SDK Automation GitHub App ID (for PR automation scripts)"
   type        = string
 }
 
@@ -60,10 +65,10 @@ locals {
   repositories = {
     # Python SDK repository
     "python-sdk" = {
-      description           = "Python SDK with automated package publishing and API token rotation"
-      schedule_time        = "02:00"  # 2 AM EST
-      schedule_timezone    = "America/New_York"
-      additional_owners    = [
+      description       = "Python SDK with automated package publishing and API token rotation"
+      schedule_time     = "02:00" # 2 AM EST
+      schedule_timezone = "America/New_York"
+      additional_owners = [
         "*.py @${var.github_owner}/python-team",
         "pyproject.toml @${var.github_owner}/sdk-team",
         "setup.py @${var.github_owner}/sdk-team",
@@ -73,10 +78,10 @@ locals {
 
     # Go SDK repository
     "go-sdk" = {
-      description           = "Go SDK with automated module publishing and dependency updates"
-      schedule_time        = "02:30"  # 2:30 AM EST
-      schedule_timezone    = "America/New_York"
-      additional_owners    = [
+      description       = "Go SDK with automated module publishing and dependency updates"
+      schedule_time     = "02:30" # 2:30 AM EST
+      schedule_timezone = "America/New_York"
+      additional_owners = [
         "*.go @${var.github_owner}/go-team",
         "go.mod @${var.github_owner}/sdk-team",
         "go.sum @${var.github_owner}/sdk-team",
@@ -86,10 +91,10 @@ locals {
 
     # Database SDK repository
     "databases-sdk" = {
-      description           = "Multi-language SDK for database integrations with connection management"
-      schedule_time        = "01:30"  # 1:30 AM PST
-      schedule_timezone    = "America/Los_Angeles"
-      additional_owners    = [
+      description       = "Multi-language SDK for database integrations with connection management"
+      schedule_time     = "01:30" # 1:30 AM PST
+      schedule_timezone = "America/Los_Angeles"
+      additional_owners = [
         "*/database/ @${var.github_owner}/database-team",
         "*.sql @${var.github_owner}/database-team",
         "migrations/ @${var.github_owner}/database-team",
@@ -99,10 +104,10 @@ locals {
 
     # Generative AI SDK repository
     "genai-sdk" = {
-      description           = "Generative AI SDK with model access tokens and API key management"
-      schedule_time        = "03:00"  # 3 AM EST
-      schedule_timezone    = "America/New_York"
-      additional_owners    = [
+      description       = "Generative AI SDK with model access tokens and API key management"
+      schedule_time     = "03:00" # 3 AM EST
+      schedule_timezone = "America/New_York"
+      additional_owners = [
         "*/models/ @${var.github_owner}/ai-team",
         "*/training/ @${var.github_owner}/ai-team",
         "*/inference/ @${var.github_owner}/ai-team",
@@ -113,18 +118,18 @@ locals {
 }
 
 # Create shared Pub/Sub topic for Cloud Build triggers
-resource "google_pubsub_topic" "cloud_builds" {
+resource "google_pubsub_topic" "sdk_automation" {
   project = var.gcp_project_id
-  name    = "cloud-builds"
+  name    = "sdk-automation-triggers"
 }
 
 # Create shared GitHub App private key secret
 resource "google_secret_manager_secret" "github_app_private_key" {
   project   = var.gcp_project_id
   secret_id = "github-app-private-key"
-  
+
   replication {
-    automatic = true
+    auto {}
   }
 }
 
@@ -133,9 +138,9 @@ resource "google_secret_manager_secret" "installation_ids" {
   for_each  = local.repositories
   project   = var.gcp_project_id
   secret_id = "${each.key}-installation-id"
-  
+
   replication {
-    automatic = true
+    auto {}
   }
 }
 
@@ -151,10 +156,10 @@ module "github_repos" {
   github_owner     = var.github_owner
 
   # Google Cloud configuration
-  gcp_project_id        = var.gcp_project_id
-  
+  gcp_project_id = var.gcp_project_id
+
   # GitHub App configuration
-  github_app_id                      = var.github_app_id
+  github_app_id                      = var.sdk_automation_github_app_id
   github_app_private_key_secret_name = google_secret_manager_secret.github_app_private_key.secret_id
 
   # Scheduling configuration
@@ -166,8 +171,8 @@ module "github_repos" {
   additional_codeowners = each.value.additional_owners
 
   # Cloud infrastructure configuration
-  scheduler_region = var.scheduler_region
-  pubsub_topic_name = google_pubsub_topic.cloud_builds.id
+  scheduler_region  = var.scheduler_region
+  pubsub_topic_name = google_pubsub_topic.sdk_automation.id
 }
 
 # Outputs
@@ -177,11 +182,11 @@ output "repository_summary" {
     for repo_key, repo_config in local.repositories : repo_key => {
       repository_name        = module.github_repos[repo_key].repository_name
       repository_url         = module.github_repos[repo_key].repository_url
-      secret_name           = module.github_repos[repo_key].secret_name
-      service_account       = module.github_repos[repo_key].service_account_email
-      schedule_time         = "${repo_config.schedule_time} ${repo_config.schedule_timezone}"
+      secret_name            = module.github_repos[repo_key].secret_name
+      service_account        = module.github_repos[repo_key].service_account_email
+      schedule_time          = "${repo_config.schedule_time} ${repo_config.schedule_timezone}"
       cloud_build_trigger_id = module.github_repos[repo_key].cloud_build_trigger_id
-      scheduler_job_name    = module.github_repos[repo_key].cloud_scheduler_job_name
+      scheduler_job_name     = module.github_repos[repo_key].cloud_scheduler_job_name
     }
   }
 }
@@ -194,7 +199,7 @@ output "github_app_setup_commands" {
       for repo_key in keys(local.repositories) :
       "echo -n \"INSTALLATION_ID_FOR_${upper(replace(repo_key, "-", "_"))}\" | gcloud secrets versions add ${google_secret_manager_secret.installation_ids[repo_key].secret_id} --data-file=- --project=${var.gcp_project_id}"
     ]
-    helper_script = "./modules/github-repo-with-cloudbuild/templates/installation-helper.sh generate-secrets ${var.github_app_id} your-private-key.pem ${var.gcp_project_id} '${join(" ", keys(local.repositories))}'"
+    helper_script = "./modules/github-repo-with-cloudbuild/templates/installation-helper.sh generate-secrets ${var.sdk_automation_github_app_id} your-private-key.pem ${var.gcp_project_id} '${join(" ", keys(local.repositories))}'"
   }
 }
 
@@ -210,6 +215,6 @@ output "infrastructure_summary" {
       for repo_key in keys(local.repositories) :
       "Job: ${module.github_repos[repo_key].cloud_scheduler_job_name} for ${repo_key}"
     ]
-    pubsub_topic = google_pubsub_topic.cloud_builds.name
+    pubsub_topic = google_pubsub_topic.sdk_automation.name
   }
 }

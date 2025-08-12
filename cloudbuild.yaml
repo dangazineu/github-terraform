@@ -41,8 +41,38 @@ steps:
           echo "GCS backend bucket already exists."
         fi
 
+        # Debug: Check environment and authentication
+        echo "=== Debug: Environment Variables ===" 
+        echo "PROJECT_ID: ${PROJECT_ID}"
+        echo "TF_VAR_gcp_project_id: ${TF_VAR_gcp_project_id}"
+        echo "TF_VAR_github_owner: ${TF_VAR_github_owner}"
+        echo "TF_VAR_github_token: [REDACTED - length: $(echo ${TF_VAR_github_token} | wc -c)]"
+        echo "TF_VAR_github_app_id: ${TF_VAR_github_app_id}"
+        
+        echo "=== Debug: Authentication Check ==="
+        gcloud auth list
+        gcloud config list
+        
+        echo "=== Debug: Secret Access Test ==="
+        echo "Testing github-token secret access..."
+        gcloud secrets versions access latest --secret="github-token" --project="${PROJECT_ID}" | head -c 10 && echo "...[REDACTED]"
+        echo "Testing github-app-id secret access..."
+        gcloud secrets versions access latest --secret="github-app-id" --project="${PROJECT_ID}"
+        
+        echo "=== Debug: API Services Check ==="
+        echo "Checking required API services..."
+        gcloud services list --enabled --filter="name:(secretmanager.googleapis.com OR cloudbuild.googleapis.com)" --project="${PROJECT_ID}"
+
         # Initialize with backend
-        terraform init
+        echo "=== Initializing Terraform ===" 
+        terraform init -input=false || {
+          echo "=== Terraform init failed ==="
+          echo "Exit code: $?"
+          echo "Checking terraform version and basic functionality..."
+          terraform version
+          terraform validate || echo "Terraform validate failed"
+          exit 1
+        }
 
         # Plan the configuration
         echo "=== Planning Terraform configuration ==="
