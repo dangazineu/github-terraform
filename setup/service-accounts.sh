@@ -82,3 +82,16 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --role="roles/resourcemanager.projectIamAdmin"
 
 echo "Service account setup completed!"
+
+# Grant Secret Manager Admin role to Cloud Build service account for GitHub connection
+echo "Granting Secret Manager permissions to Cloud Build service account..."
+# Get the Cloud Build service account (format: service-<PROJECT_NUMBER>@gcp-sa-cloudbuild.iam.gserviceaccount.com)
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
+CLOUD_BUILD_SA="service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${CLOUD_BUILD_SA}" \
+  --role="roles/secretmanager.admin"
+
+echo "Cloud Build service account permissions granted ✓"
+echo "Setup completed successfully!"
