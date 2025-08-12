@@ -62,15 +62,14 @@ steps:
         terraform init
         
         echo "Running terraform plan..."
-        if ! terraform plan -detailed-exitcode -out=pr-validation.tfplan; then
-          PLAN_EXIT_CODE=$?
-          if [ $PLAN_EXIT_CODE -eq 1 ]; then
-            echo "❌ FAIL: Terraform plan failed with errors"
-            exit 1
-          elif [ $PLAN_EXIT_CODE -eq 2 ]; then
-            echo "⚠️  INFO: Terraform plan succeeded with changes detected"
-            echo "This is expected for most PRs that modify infrastructure"
-          fi
+        terraform plan -detailed-exitcode -out=pr-validation.tfplan || PLAN_RESULT=$$?
+        
+        if [ "$${PLAN_RESULT:-0}" -eq 1 ]; then
+          echo "❌ FAIL: Terraform plan failed with errors"
+          exit 1
+        elif [ "$${PLAN_RESULT:-0}" -eq 2 ]; then
+          echo "⚠️  INFO: Terraform plan succeeded with changes detected"
+          echo "This is expected for most PRs that modify infrastructure"
         else
           echo "✅ PASS: Terraform plan succeeded with no changes"
         fi
