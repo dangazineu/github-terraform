@@ -25,6 +25,9 @@ steps:
       - |
         echo "Planning Terraform changes..."
 
+        # Create backend bucket if it doesn't exist
+        gsutil mb -p ${PROJECT_ID} gs://dgzn-terraform-tfstate || echo "Bucket already exists"
+
         # Initialize with backend
         terraform init
 
@@ -89,8 +92,8 @@ steps:
           terraform output infrastructure_summary
 
           echo "=== Next Steps ==="
-          echo "Only remaining manual step - Create secrets in Secret Manager:"
-          terraform output secret_setup_commands
+          echo "GitHub App setup commands (if not already done):"
+          terraform output github_app_setup_commands
 
           echo "=== Build completed successfully ==="
         fi
