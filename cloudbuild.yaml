@@ -46,8 +46,12 @@ steps:
         echo "PROJECT_ID: ${PROJECT_ID}"
         echo "TF_VAR_gcp_project_id: ${TF_VAR_gcp_project_id}"
         echo "TF_VAR_github_owner: ${TF_VAR_github_owner}"
+        # Clean secrets by removing any potential whitespace/newlines
+        export TF_VAR_github_token="$(echo "$$GITHUB_TOKEN" | tr -d '\n\r ')"
+        export TF_VAR_github_app_id="$(echo "$$GITHUB_APP_ID" | tr -d '\n\r ')"
         echo "TF_VAR_github_token: [REDACTED - length: $(echo ${TF_VAR_github_token} | wc -c)]"
         echo "TF_VAR_github_app_id: ${TF_VAR_github_app_id}"
+        echo "Debug: token hex dump: $(echo -n "${TF_VAR_github_token}" | xxd -l 20)"
         
         echo "=== Debug: Authentication Check ==="
         gcloud auth list
@@ -122,17 +126,13 @@ steps:
         fi
     env:
       - 'TF_IN_AUTOMATION=true'
-      - 'GITHUB_TOKEN=${_GITHUB_TOKEN}'
-      - 'TF_VAR_github_token=${_GITHUB_TOKEN}'
       - 'TF_VAR_github_owner=${_GITHUB_OWNER}'
       - 'TF_VAR_gcp_project_id=${PROJECT_ID}'
-      - 'TF_VAR_github_app_id=${_GITHUB_APP_ID}'
+    secretEnv: ['GITHUB_TOKEN', 'GITHUB_APP_ID']
 
 # Substitutions for variables
 substitutions:
-  _GITHUB_TOKEN: 'projects/${PROJECT_ID}/secrets/github-token/versions/latest'
   _GITHUB_OWNER: 'dg-ghtest'  # Replace with your SDK GitHub org
-  _GITHUB_APP_ID: 'projects/${PROJECT_ID}/secrets/github-app-id/versions/latest'
 
 # Use a service account with appropriate permissions
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com'
@@ -149,6 +149,14 @@ artifacts:
     paths:
       - 'terraform-outputs.json'
       - '*.tfplan'
+
+# Available secrets
+availableSecrets:
+  secretManager:
+  - versionName: projects/${PROJECT_ID}/secrets/github-token/versions/latest
+    env: 'GITHUB_TOKEN'
+  - versionName: projects/${PROJECT_ID}/secrets/github-app-id/versions/latest
+    env: 'GITHUB_APP_ID'
 
 # Build timeout (20 minutes)
 timeout: '1200s'
