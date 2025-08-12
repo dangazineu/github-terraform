@@ -1,0 +1,37 @@
+# cloudbuild-pr.yaml - Pull request validation
+steps:
+  - name: 'hashicorp/terraform:1.5.7'
+    id: 'terraform-validate-and-plan'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        echo "========================================="
+        echo "=== Terraform PR Validation          ==="
+        echo "========================================="
+        terraform version
+        
+        echo "Checking terraform syntax..."
+        terraform fmt -check=true -diff=true
+        
+        echo "Initializing terraform (without backend for validation)..."
+        terraform init -backend=false
+        
+        echo "Validating terraform configuration..."
+        terraform validate
+        
+        echo "=== PR validation completed successfully ==="
+    env:
+      - 'TF_IN_AUTOMATION=true'
+
+# Use same substitutions and service account
+substitutions:
+  _GITHUB_TOKEN: 'projects/${PROJECT_ID}/secrets/github-token/versions/latest'
+  _GITHUB_OWNER: 'dg-ghtest'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '600s'

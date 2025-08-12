@@ -1,0 +1,12 @@
+# terraform.tfvars.example
+# Copy this to terraform.tfvars and customize for your SDK organization
+
+# GitHub configuration
+github_owner = "your-sdk-org"
+
+# Google Cloud configuration
+gcp_project_id = "your-gcp-project-id"
+scheduler_region = "us-central1"
+
+# Note: github_token is retrieved from Secret Manager in Cloud Build
+# For local development, set: export TF_VAR_github_token="your_token"

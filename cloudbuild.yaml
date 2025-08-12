@@ -1,0 +1,162 @@
+# cloudbuild.yaml - Self-managing Cloud Build configuration
+# This file manages the repository that contains the GitHub/Cloud Build module
+#
+# AUTHENTICATION APPROACH:
+# This build uses Cloud Build's service account mechanism for GCP authentication:
+# 1. The 'serviceAccount' field assigns terraform-automation@PROJECT_ID.iam.gserviceaccount.com
+# 2. Cloud Build automatically generates temporary access tokens for this service account
+# 3. The google/cloud-sdk:latest image automatically uses these tokens via Application Default Credentials (ADC)
+# 4. Both gcloud/gsutil commands and Terraform Google provider authenticate seamlessly
+# 5. No manual token management needed - Cloud Build handles token lifecycle securely
+
+steps:
+  # Step 1: Validate, Plan and Apply Terraform Configuration
+  - name: 'google/cloud-sdk:latest'
+    id: 'terraform-full'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        # Install Terraform
+        apt-get update && apt-get install -y gnupg software-properties-common curl
+        curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
+        apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+        apt-get update && apt-get install terraform
+
+        echo "========================================="
+        echo "=== Terraform Main Branch Build      ==="
+        echo "========================================="
+        terraform version
+
+        echo "Validating Terraform configuration..."
+        terraform fmt -check=true -diff=true
+
+        echo "Planning Terraform changes..."
+
+        # Create backend bucket if it doesn't exist
+        if ! gsutil ls gs://dgzn-terraform-tfstate; then
+          echo "Creating GCS backend bucket..."
+          gsutil mb -p ${PROJECT_ID} gs://dgzn-terraform-tfstate
+        else
+          echo "GCS backend bucket already exists."
+        fi
+
+        # Debug: Check environment and authentication
+        echo "=== Debug: Environment Variables ===" 
+        echo "PROJECT_ID: ${PROJECT_ID}"
+        echo "TF_VAR_gcp_project_id: ${TF_VAR_gcp_project_id}"
+        echo "TF_VAR_github_owner: ${TF_VAR_github_owner}"
+        # Clean secrets by removing any potential whitespace/newlines
+        export TF_VAR_github_token="$(echo "$$GITHUB_TOKEN" | tr -d '\n\r ')"
+        export TF_VAR_github_app_id="$(echo "$$GITHUB_APP_ID" | tr -d '\n\r ')"
+        echo "TF_VAR_github_token: [REDACTED - length: $(echo ${TF_VAR_github_token} | wc -c)]"
+        echo "TF_VAR_github_app_id: ${TF_VAR_github_app_id}"
+        echo "Debug: token hex dump: $(echo -n "${TF_VAR_github_token}" | xxd -l 20)"
+        
+        echo "=== Debug: Authentication Check ==="
+        gcloud auth list
+        gcloud config list
+        
+        echo "=== Debug: Secret Access Test ==="
+        echo "Testing github-token secret access..."
+        gcloud secrets versions access latest --secret="github-token" --project="${PROJECT_ID}" | head -c 10 && echo "...[REDACTED]"
+        echo "Testing github-app-id secret access..."
+        gcloud secrets versions access latest --secret="github-app-id" --project="${PROJECT_ID}"
+        
+        echo "=== Debug: API Services Check ==="
+        echo "Checking required API services..."
+        gcloud services list --enabled --filter="name:(secretmanager.googleapis.com OR cloudbuild.googleapis.com)" --project="${PROJECT_ID}"
+
+        # Initialize with backend
+        echo "=== Initializing Terraform ===" 
+        terraform init -input=false || {
+          echo "=== Terraform init failed ==="
+          echo "Exit code: $?"
+          echo "Checking terraform version and basic functionality..."
+          terraform version
+          terraform validate || echo "Terraform validate failed"
+          exit 1
+        }
+
+        # Plan the configuration
+        echo "=== Planning Terraform configuration ==="
+        # Set the SDK Automation GitHub App ID
+        export TF_VAR_sdk_automation_github_app_id="1770057"
+        # Use -var-file only if terraform.tfvars exists
+        if [ -f terraform.tfvars ]; then
+          terraform plan -out=main.tfplan -var-file=terraform.tfvars
+        else
+          terraform plan -out=main.tfplan
+        fi
+
+        # Check if plan was successful
+        if [ $? -ne 0 ]; then
+          echo "Terraform plan failed. Exiting."
+          exit 1
+        fi
+
+        # Show plan
+        terraform show main.tfplan
+
+        # Apply changes (only on main branch)
+        if [ "$BRANCH_NAME" = "main" ]; then
+          echo "Applying Terraform changes to main branch..."
+
+          # Apply configuration
+          echo "=== Applying Terraform configuration ==="
+          terraform apply -auto-approve main.tfplan
+
+          # Output results
+          echo "=== Terraform Outputs ==="
+          terraform output -json > /workspace/terraform-outputs.json
+
+          echo "=== Repository Summary ==="
+          terraform output repository_summary || echo "No repository_summary output available"
+
+          echo "=== Infrastructure Summary ==="
+          terraform output infrastructure_summary || echo "No infrastructure_summary output available"
+
+          echo "=== Next Steps ==="
+          echo "GitHub App setup commands (if not already done):"
+          terraform output github_app_setup_commands || echo "No github_app_setup_commands output available"
+
+          echo "=== Build completed successfully ==="
+        else
+          echo "Skipping apply - not on main branch (current: $BRANCH_NAME)"
+        fi
+    env:
+      - 'TF_IN_AUTOMATION=true'
+      - 'TF_VAR_github_owner=${_GITHUB_OWNER}'
+      - 'TF_VAR_gcp_project_id=${PROJECT_ID}'
+    secretEnv: ['GITHUB_TOKEN', 'GITHUB_APP_ID']
+
+# Substitutions for variables
+substitutions:
+  _GITHUB_OWNER: 'dg-ghtest'  # Replace with your SDK GitHub org
+
+# Use a service account with appropriate permissions
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com'
+
+# Build options
+options:
+  # Enable detailed logging (required when using custom service account)
+  logging: CLOUD_LOGGING_ONLY
+
+# Artifacts to store
+artifacts:
+  objects:
+    location: 'gs://${PROJECT_ID}-terraform-artifacts'
+    paths:
+      - 'terraform-outputs.json'
+      - '*.tfplan'
+
+# Available secrets
+availableSecrets:
+  secretManager:
+  - versionName: projects/${PROJECT_ID}/secrets/github-token/versions/latest
+    env: 'GITHUB_TOKEN'
+  - versionName: projects/${PROJECT_ID}/secrets/github-app-id/versions/latest
+    env: 'GITHUB_APP_ID'
+
+# Build timeout (20 minutes)
+timeout: '1200s'
