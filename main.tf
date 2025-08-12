@@ -127,6 +127,7 @@ locals {
         "notebooks/ @${var.github_owner}/docs-team"
       ]
     }
+  }
 }
 
 # Create shared Pub/Sub topic for Cloud Build triggers
