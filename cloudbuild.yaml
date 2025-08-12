@@ -131,9 +131,7 @@ steps:
 
 # Substitutions for variables
 substitutions:
-  _GITHUB_TOKEN: 'projects/${PROJECT_ID}/secrets/github-token/versions/latest'
   _GITHUB_OWNER: 'dg-ghtest'  # Replace with your SDK GitHub org
-  _GITHUB_APP_ID: 'projects/${PROJECT_ID}/secrets/github-app-id/versions/latest'
 
 # Use a service account with appropriate permissions
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com'
