@@ -29,6 +29,7 @@ REQUIRED_APIS=(
     "iam.googleapis.com"
     "cloudbuild.googleapis.com"
     "secretmanager.googleapis.com"
+    "cloudresourcemanager.googleapis.com"
 )
 
 for api in "${REQUIRED_APIS[@]}"; do
