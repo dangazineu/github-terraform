@@ -98,6 +98,16 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${SA_EMAIL}" \
   --role="roles/iam.serviceAccountUser"
 
+# Create artifacts bucket for Cloud Build
+ARTIFACTS_BUCKET="${PROJECT_ID}-terraform-artifacts"
+echo "Creating artifacts bucket: gs://${ARTIFACTS_BUCKET}"
+if ! gsutil ls "gs://${ARTIFACTS_BUCKET}" >/dev/null 2>&1; then
+    gsutil mb -p "$PROJECT_ID" "gs://${ARTIFACTS_BUCKET}"
+    echo "Artifacts bucket created ✓"
+else
+    echo "Artifacts bucket already exists ✓"
+fi
+
 echo "Service account setup completed!"
 
 # Grant Secret Manager Admin role to Cloud Build service account for GitHub connection
