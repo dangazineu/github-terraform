@@ -113,9 +113,9 @@ locals {
 }
 
 # Create shared Pub/Sub topic for Cloud Build triggers
-resource "google_pubsub_topic" "cloud_builds" {
+resource "google_pubsub_topic" "sdk_automation" {
   project = var.gcp_project_id
-  name    = "cloud-builds"
+  name    = "sdk-automation-triggers"
 }
 
 # Create shared GitHub App private key secret
@@ -124,7 +124,7 @@ resource "google_secret_manager_secret" "github_app_private_key" {
   secret_id = "github-app-private-key"
 
   replication {
-    automatic = true
+    auto {}
   }
 }
 
@@ -135,7 +135,7 @@ resource "google_secret_manager_secret" "installation_ids" {
   secret_id = "${each.key}-installation-id"
 
   replication {
-    automatic = true
+    auto {}
   }
 }
 
@@ -167,7 +167,7 @@ module "github_repos" {
 
   # Cloud infrastructure configuration
   scheduler_region  = var.scheduler_region
-  pubsub_topic_name = google_pubsub_topic.cloud_builds.id
+  pubsub_topic_name = google_pubsub_topic.sdk_automation.id
 }
 
 # Outputs
@@ -210,6 +210,6 @@ output "infrastructure_summary" {
       for repo_key in keys(local.repositories) :
       "Job: ${module.github_repos[repo_key].cloud_scheduler_job_name} for ${repo_key}"
     ]
-    pubsub_topic = google_pubsub_topic.cloud_builds.name
+    pubsub_topic = google_pubsub_topic.sdk_automation.name
   }
 }

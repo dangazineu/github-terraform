@@ -30,14 +30,33 @@ if [[ ! -s "$PRIVATE_KEY_FILE" ]]; then
 fi
 
 echo "Retrieving installation ID from Secret Manager..."
-INSTALLATION_ID=$(gcloud secrets versions access latest --secret="${INSTALLATION_ID_SECRET}" --project="${PROJECT_ID}")
+INSTALLATION_ID=$(gcloud secrets versions access latest --secret="${INSTALLATION_ID_SECRET}" --project="${PROJECT_ID}" 2>/dev/null || echo "")
 
 if [[ -z "$INSTALLATION_ID" ]]; then
-    echo "ERROR: Failed to retrieve installation ID!"
-    exit 1
+    echo "Installation ID not found in Secret Manager. Discovering automatically..."
+    
+    # Use installation helper to find the installation ID for this repository
+    source /tmp/installation-helper.sh
+    INSTALLATION_ID=$(find_installation_for_repository "${GITHUB_APP_ID}" "$PRIVATE_KEY_FILE" "$GITHUB_REPOSITORY")
+    
+    if [[ $? -ne 0 || -z "$INSTALLATION_ID" ]]; then
+        echo "ERROR: Failed to discover installation ID for repository ${GITHUB_REPOSITORY}!"
+        echo "Make sure the GitHub App is installed on this repository."
+        exit 1
+    fi
+    
+    echo "Discovered installation ID: ${INSTALLATION_ID}"
+    echo "Storing installation ID in Secret Manager for future use..."
+    echo -n "$INSTALLATION_ID" | gcloud secrets versions add "${INSTALLATION_ID_SECRET}" --data-file=- --project="${PROJECT_ID}"
+    
+    if [[ $? -eq 0 ]]; then
+        echo "Successfully stored installation ID in Secret Manager."
+    else
+        echo "WARNING: Failed to store installation ID in Secret Manager. Will rediscover next time."
+    fi
+else
+    echo "Installation ID retrieved from Secret Manager: ${INSTALLATION_ID}"
 fi
-
-echo "Installation ID: ${INSTALLATION_ID}"
 
 echo "Generating GitHub App authentication token..."
 GITHUB_TOKEN=$(authenticate_github_app "${GITHUB_APP_ID}" "$PRIVATE_KEY_FILE" "$INSTALLATION_ID")
