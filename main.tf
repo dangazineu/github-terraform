@@ -114,6 +114,18 @@ locals {
         "notebooks/ @${var.github_owner}/docs-team"
       ]
     }
+
+ "test-sdk" = {
+      description       = "test AI SDK"
+      schedule_time     = "03:00" # 3 AM EST
+      schedule_timezone = "America/New_York"
+      additional_owners = [
+        "*/models/ @${var.github_owner}/ai-team",
+        "*/training/ @${var.github_owner}/ai-team",
+        "*/inference/ @${var.github_owner}/ai-team",
+        "notebooks/ @${var.github_owner}/docs-team"
+      ]
+    }
   }
 }
 
