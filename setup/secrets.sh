@@ -5,10 +5,10 @@
 set -euo pipefail
 
 PROJECT_ID="${1}"
-GITHUB_TOKEN="${2}"
+SDK_GITHUB_TOKEN="${2}"
 GITHUB_APP_ID="${3:-}"
 
-if [[ -z "${PROJECT_ID:-}" ]] || [[ -z "${GITHUB_TOKEN:-}" ]]; then
+if [[ -z "${PROJECT_ID:-}" ]] || [[ -z "${SDK_GITHUB_TOKEN:-}" ]]; then
     echo "Usage: $0 <project_id> <github_token> [github_app_id]"
     echo "Example: $0 my-sdk-project ghp_xxxxxxxxxxxx 123456"
     echo ""
@@ -34,14 +34,14 @@ if ! gcloud services list --enabled --filter="name:secretmanager.googleapis.com"
 fi
 
 # Create secret for GitHub token
-if gcloud secrets describe github-token --project="$PROJECT_ID" >/dev/null 2>&1; then
+if gcloud secrets describe sdk-github-token --project="$PROJECT_ID" >/dev/null 2>&1; then
     echo "GitHub token secret already exists, updating with new value..."
-    echo "$GITHUB_TOKEN" | gcloud secrets versions add github-token \
+    echo "$SDK_GITHUB_TOKEN" | gcloud secrets versions add sdk-github-token \
       --data-file=- \
       --project="$PROJECT_ID"
 else
     echo "Creating GitHub token secret..."
-    echo "$GITHUB_TOKEN" | gcloud secrets create github-token \
+    echo "$SDK_GITHUB_TOKEN" | gcloud secrets create sdk-github-token \
       --data-file=- \
       --project="$PROJECT_ID"
 fi
@@ -52,10 +52,10 @@ echo "Granting access to terraform-automation service account..."
 SA_EMAIL="terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # Check if IAM binding already exists
-if gcloud secrets get-iam-policy github-token --project="$PROJECT_ID" --format="value(bindings.members)" | grep -q "$SA_EMAIL"; then
-    echo "Service account already has access to github-token secret"
+if gcloud secrets get-iam-policy sdk-github-token --project="$PROJECT_ID" --format="value(bindings.members)" | grep -q "$SA_EMAIL"; then
+    echo "Service account already has access to sdk-github-token secret"
 else
-    gcloud secrets add-iam-policy-binding github-token \
+    gcloud secrets add-iam-policy-binding sdk-github-token \
       --member="serviceAccount:$SA_EMAIL" \
       --role="roles/secretmanager.secretAccessor" \
       --project="$PROJECT_ID"

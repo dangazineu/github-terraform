@@ -103,7 +103,7 @@ terraform-github-sdk-module/
 │
 └── setup/                              # Bootstrap setup scripts (run once)
     ├── service-accounts.sh             # Creates terraform-automation service account
-    ├── secrets.sh                      # Creates github-token and github-app-id secrets
+    ├── secrets.sh                      # Creates sdk-github-token and github-app-id secrets
     └── triggers.sh                     # Creates triggers for this infrastructure repo
 ```
 
@@ -184,7 +184,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 #
 # Go to: https://github.com/settings/tokens/new
 # Scopes needed: repo, admin:org, admin:repo_hook
-# Save this token as $GITHUB_TOKEN
+# Save this token as $SDK_GITHUB_TOKEN
 #
 # Note: Classic PATs have broader access and don't expire by default.
 # Consider setting an expiration date for security.
@@ -209,7 +209,7 @@ Known Limitations (as of 2024):
 ```bash
 export PROJECT_ID="your-project-id"
 export GITHUB_OWNER="your-github-org"
-export GITHUB_TOKEN="your-github-token"
+export SDK_GITHUB_TOKEN="your-github-token"
 export REPO_NAME="terraform-github-sdk-module"  # Must match the repo name from step 0
 ```
 
@@ -262,7 +262,7 @@ export GITHUB_APP_ID="123456"  # Replace with the installation ID from the URL
 echo "GitHub App ID (Installation ID): $GITHUB_APP_ID"
 
 # 2. Create both secrets (GitHub token and App ID):
-./setup/secrets.sh $PROJECT_ID $GITHUB_TOKEN $GITHUB_APP_ID
+./setup/secrets.sh $PROJECT_ID $SDK_GITHUB_TOKEN $GITHUB_APP_ID
 ```
 
 **Finding Your GitHub App Installation ID:**
@@ -411,7 +411,7 @@ export TF_VAR_sdk_automation_github_app_id="1770057"  # SDK Automation GitHub Ap
 #### 3.1. Set Required Variables
 ```bash
 # Use the same variables from bootstrap setup
-export TF_VAR_github_token="$GITHUB_TOKEN"
+export TF_VAR_github_token="$SDK_GITHUB_TOKEN"
 export TF_VAR_gcp_project_id="$PROJECT_ID"
 export TF_VAR_github_owner="$GITHUB_OWNER"
 export TF_VAR_github_app_id="80495728"  # Cloud Build GitHub App ID
@@ -443,7 +443,7 @@ terraform output github_app_setup_commands
 
 # Check what was created
 gcloud secrets list --project=$PROJECT_ID
-curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/orgs/$GITHUB_OWNER/repos" | grep '"name"'
+curl -s -H "Authorization: token $SDK_GITHUB_TOKEN" "https://api.github.com/orgs/$GITHUB_OWNER/repos" | grep '"name"'
 ```
 
 **What Gets Created**:
@@ -462,7 +462,7 @@ After completing all steps, verify your SDK automation is working:
 #### 4.1. Check Infrastructure Status
 ```bash
 # Verify all repositories exist
-curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/orgs/$GITHUB_OWNER/repos" | grep '"name"' | grep sdk
+curl -s -H "Authorization: token $SDK_GITHUB_TOKEN" "https://api.github.com/orgs/$GITHUB_OWNER/repos" | grep '"name"' | grep sdk
 
 # Check Cloud Build triggers (including infrastructure triggers from bootstrap)
 gcloud builds triggers list --project=$PROJECT_ID
