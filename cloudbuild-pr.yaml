@@ -87,7 +87,7 @@ steps:
 
 # Use same substitutions and service account
 substitutions:
-  _GITHUB_TOKEN: 'projects/${PROJECT_ID}/secrets/sdk-github-token/versions/latest'
+  _GITHUB_TOKEN: 'projects/${PROJECT_ID}/secrets/github-token/versions/latest'
   _GITHUB_OWNER: 'dg-ghtest'
 
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com'
@@ -95,7 +95,7 @@ serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${P
 # Available secrets
 availableSecrets:
   secretManager:
-  - versionName: projects/${PROJECT_ID}/secrets/sdk-github-token/versions/latest
+  - versionName: projects/${PROJECT_ID}/secrets/github-token/versions/latest
     env: 'SDK_GITHUB_TOKEN'
 
 options:
