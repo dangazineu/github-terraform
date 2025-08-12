@@ -15,6 +15,11 @@ steps:
         apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
         apt-get update && apt-get install terraform
 
+        echo "========================================="
+        echo "=== Terraform Main Branch Build      ==="
+        echo "========================================="
+        terraform version
+
         echo "Validating Terraform configuration..."
         terraform fmt -check=true -diff=true
 
@@ -51,7 +56,21 @@ steps:
           echo "=== Applying Terraform configuration ==="
           terraform apply -auto-approve main.tfplan
 
-          echo "Terraform apply completed successfully"
+          # Output results
+          echo "=== Terraform Outputs ==="
+          terraform output -json > /workspace/terraform-outputs.json
+
+          echo "=== Repository Summary ==="
+          terraform output repository_summary || echo "No repository_summary output available"
+
+          echo "=== Infrastructure Summary ==="
+          terraform output infrastructure_summary || echo "No infrastructure_summary output available"
+
+          echo "=== Next Steps ==="
+          echo "GitHub App setup commands (if not already done):"
+          terraform output github_app_setup_commands || echo "No github_app_setup_commands output available"
+
+          echo "=== Build completed successfully ==="
         else
           echo "Skipping apply - not on main branch (current: $BRANCH_NAME)"
         fi
@@ -61,41 +80,6 @@ steps:
       - 'TF_VAR_github_token=${_GITHUB_TOKEN}'
       - 'TF_VAR_github_owner=${_GITHUB_OWNER}'
       - 'TF_VAR_gcp_project_id=${PROJECT_ID}'
-
-  # Step 2: Output results and next steps (only for main branch)
-  - name: 'google/cloud-sdk:latest'
-    id: 'terraform-output'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - |
-        if [ "$BRANCH_NAME" = "main" ]; then
-          # Install Terraform (needed for terraform output)
-          apt-get update && apt-get install -y gnupg software-properties-common curl
-          curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
-          apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-          apt-get update && apt-get install terraform
-
-          # Initialize to read state
-          terraform init
-
-          echo "=== Terraform Outputs ==="
-          terraform output -json > /workspace/terraform-outputs.json
-
-          echo "=== Repository Summary ==="
-          terraform output repository_summary
-
-          echo "=== Infrastructure Summary ==="
-          terraform output infrastructure_summary
-
-          echo "=== Next Steps ==="
-          echo "GitHub App setup commands (if not already done):"
-          terraform output github_app_setup_commands
-
-          echo "=== Build completed successfully ==="
-        fi
-    env:
-      - 'TF_IN_AUTOMATION=true'
 
 # Substitutions for variables
 substitutions:
@@ -107,17 +91,8 @@ serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${P
 
 # Build options
 options:
-  # Use a machine with more resources for Terraform
-  machineType: 'E2_STANDARD_2'
-
-  # Enable detailed logging
+  # Enable detailed logging (required when using custom service account)
   logging: CLOUD_LOGGING_ONLY
-  logStreamingOption: STREAM_ON
-
-  # Set working directory
-  env:
-    - 'TF_IN_AUTOMATION=true'
-    - 'TF_INPUT=false'
 
 # Artifacts to store
 artifacts:
