@@ -327,8 +327,9 @@ This script will:
 
 **Why a Dedicated GitHub App is Required:**
 - SDK automation scripts need **Pull requests: Write** permission to create/close PRs
-- Cloud Build GitHub App only has **Pull requests: Read** permission (for triggers)  
-- The SDK automation performs different operations than Cloud Build's repository access
+- Cloud Build GitHub App (ID: typically 8-digit number like 80495728) only has **Pull requests: Read** permission (for triggers)  
+- The SDK Automation GitHub App (ID: your NEW_APP_ID like 1770057) has write permissions for PR automation
+- These are two separate apps serving different purposes
 
 #### 2.1. Create Dedicated GitHub App
 
@@ -391,8 +392,9 @@ gcloud secrets versions access latest --secret="github-app-private-key" --projec
 # Note: Installation ID secrets will be automatically populated by the SDK automation scripts
 # when they first run for each repository
 
-# Update your environment variable to use the new GitHub App ID
-export TF_VAR_github_app_id="1770057"  # Replace with your actual App ID
+# Update your environment variables to use both GitHub App IDs
+export TF_VAR_github_app_id="80495728"  # Cloud Build GitHub App ID
+export TF_VAR_sdk_automation_github_app_id="1770057"  # SDK Automation GitHub App ID
 ```
 
 ### 3. SDK Repository Deployment (Manual Testing)
@@ -412,7 +414,8 @@ export TF_VAR_github_app_id="1770057"  # Replace with your actual App ID
 export TF_VAR_github_token="$GITHUB_TOKEN"
 export TF_VAR_gcp_project_id="$PROJECT_ID"
 export TF_VAR_github_owner="$GITHUB_OWNER"
-export TF_VAR_github_app_id="$GITHUB_APP_ID"
+export TF_VAR_github_app_id="80495728"  # Cloud Build GitHub App ID
+export TF_VAR_sdk_automation_github_app_id="1770057"  # SDK Automation GitHub App ID
 ```
 
 #### 3.2. Deploy SDK Infrastructure

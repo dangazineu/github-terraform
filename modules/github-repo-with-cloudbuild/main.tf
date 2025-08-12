@@ -34,11 +34,19 @@ resource "google_secret_manager_secret_iam_member" "repo_sa_private_key_access" 
   member    = "serviceAccount:${google_service_account.repo_sa.email}"
 }
 
-# Grant Secret Manager access to repository-specific installation ID
+# Grant Secret Manager access to repository-specific installation ID (read)
 resource "google_secret_manager_secret_iam_member" "repo_sa_installation_access" {
   project   = var.gcp_project_id
   secret_id = local.installation_id_secret_name
   role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.repo_sa.email}"
+}
+
+# Grant Secret Manager access to repository-specific installation ID (write)
+resource "google_secret_manager_secret_iam_member" "repo_sa_installation_writer" {
+  project   = var.gcp_project_id
+  secret_id = local.installation_id_secret_name
+  role      = "roles/secretmanager.secretVersionAdder"
   member    = "serviceAccount:${google_service_account.repo_sa.email}"
 }
 
@@ -197,13 +205,13 @@ resource "google_cloudbuild_trigger" "repo_trigger" {
         git clone https://github.com/${var.github_owner}/${var.repo_name}.git /workspace/repo
         cd /workspace/repo
         
-        # Set environment variables for the scripts
+        # Set environment variables for the scripts (matching update.sh expectations)
         export GITHUB_APP_ID="${var.github_app_id}"
         export GITHUB_OWNER="${var.github_owner}"
-        export REPO_NAME="${var.repo_name}"
+        export GITHUB_REPOSITORY="${var.github_owner}/${var.repo_name}"
         export PROJECT_ID="${var.gcp_project_id}"
-        export GITHUB_APP_PRIVATE_KEY_SECRET_NAME="${var.github_app_private_key_secret_name}"
-        export INSTALLATION_ID_SECRET_NAME="${local.installation_id_secret_name}"
+        export GITHUB_APP_PRIVATE_KEY_SECRET="${var.github_app_private_key_secret_name}"
+        export INSTALLATION_ID_SECRET="${local.installation_id_secret_name}"
         
         # Execute the repository's update script
         bash scripts/update.sh

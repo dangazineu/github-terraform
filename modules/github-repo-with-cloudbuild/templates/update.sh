@@ -13,8 +13,9 @@ echo "Repository: ${GITHUB_REPOSITORY}"
 echo "Timestamp: $(date)"
 
 # Copy utility scripts to workspace and source them
-cp /workspace/scripts/jwt-utils.sh /tmp/jwt-utils.sh
-cp /workspace/scripts/installation-helper.sh /tmp/installation-helper.sh
+# In the inline trigger context, scripts are in the cloned repository
+cp ./scripts/jwt-utils.sh /tmp/jwt-utils.sh
+cp ./scripts/installation-helper.sh /tmp/installation-helper.sh
 source /tmp/jwt-utils.sh
 
 # Create temporary files for secrets
@@ -76,9 +77,11 @@ if ! test_github_app_auth "$GITHUB_TOKEN" "$GITHUB_REPOSITORY"; then
     exit 1
 fi
 
-# Generate ISO 8601 timestamp
+# Generate timestamp for display and branch naming
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-BRANCH_NAME="timestamp-update-${TIMESTAMP}"
+# Create Git-safe branch name (replace colons with dashes)
+BRANCH_TIMESTAMP=$(date -u +"%Y-%m-%d-%H-%M-%S")
+BRANCH_NAME="timestamp-update-${BRANCH_TIMESTAMP}"
 
 # Extract repo name from the current directory or environment
 REPO_NAME=$(basename "${PWD}")
@@ -109,7 +112,7 @@ EXISTING_PRS=$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
   -H "Accept: application/vnd.github.v3+json" \
   "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls?state=open" | \
   grep -A 5 -B 5 '"title".*timestamp update' | \
-  grep -o '"number": *[0-9]*' | sed 's/"number": *//')
+  grep -o '"number": *[0-9]*' | sed 's/"number": *//' || true)
 
 if [[ -n "${EXISTING_PRS}" ]]; then
     echo "Found existing timestamp update PRs, closing them..."
@@ -137,6 +140,8 @@ git commit -m "Update timestamp to ${TIMESTAMP}"
 
 # Push the branch
 echo "Pushing branch ${BRANCH_NAME}..."
+# Configure git to use the token for push operations
+git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 git push origin "${BRANCH_NAME}"
 
 # Create new PR (always, since we closed any existing ones)
