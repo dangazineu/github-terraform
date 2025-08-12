@@ -65,6 +65,43 @@ terraform-github-sdk-module/
     └── triggers.sh                     # Creates triggers for this infrastructure repo
 ```
 
+## Validation and Quality Assurance
+
+This repository includes comprehensive validation to prevent configuration issues:
+
+### PR Validation Pipeline
+- **Terraform Format Check**: Ensures consistent code formatting
+- **Terraform Validate**: Validates configuration syntax and structure  
+- **Terraform Plan**: Tests actual deployment feasibility
+- **Security Scanning**: Detects exposed secrets and credentials
+- **Syntax Analysis**: Checks for balanced braces and common issues
+
+### Local Validation
+Run validation locally before submitting PRs:
+```bash
+# Run all validation checks
+./scripts/validate-pr.sh
+
+# Or run individual checks
+terraform fmt -check=true -diff=true
+terraform validate
+terraform plan
+```
+
+### Pre-commit Hooks (Optional)
+Install git hooks to catch issues before committing:
+```bash
+./scripts/install-hooks.sh
+```
+
+The pre-commit hook will automatically:
+- Format Terraform files with `terraform fmt`
+- Check for balanced braces and basic syntax issues
+- Scan for potential secrets in Terraform files
+- Block commits if validation fails
+
 ## Documentation
 
 For detailed information about the module architecture, use cases, and implementation details, see [SPEC.md](./SPEC.md).
+
+Last updated: 2025-08-12 - State lock issue resolved

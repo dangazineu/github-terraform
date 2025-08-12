@@ -56,7 +56,7 @@ variable "sdk_automation_github_app_id" {
   type        = string
 }
 
-# Repository configurations
+# Repository configurations  
 locals {
   # Common DevOps team for all repositories
   devops_team = "@${var.github_owner}/devops-team"
