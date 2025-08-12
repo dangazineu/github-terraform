@@ -89,11 +89,16 @@ terraform plan
 ```
 
 ### Pre-commit Hooks (Optional)
-Install pre-commit hooks to catch issues before committing:
+Install git hooks to catch issues before committing:
 ```bash
-pip install pre-commit
-pre-commit install
+./scripts/install-hooks.sh
 ```
+
+The pre-commit hook will automatically:
+- Format Terraform files with `terraform fmt`
+- Check for balanced braces and basic syntax issues
+- Scan for potential secrets in Terraform files
+- Block commits if validation fails
 
 ## Documentation
 
