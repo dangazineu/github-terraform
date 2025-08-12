@@ -143,6 +143,15 @@ gcloud config set project $PROJECT_ID
 
 # 3. Enable billing (required - do this in Cloud Console or via CLI if you have billing admin)
 # Go to: https://console.cloud.google.com/billing/linkedaccount?project=$PROJECT_ID
+# Alternatively, use the following commands:
+gcloud billing accounts list
+
+# Look for an ID like 0X0X0X-0X0X0X-0X0X0X.
+export BILLING_ACCOUNT_ID="0X0X0X-0X0X0X-0X0X0X"
+gcloud billing projects link $PROJECT_ID --billing-account=$BILLING_ACCOUNT_ID
+
+# Verify that the project has billing enabled
+gcloud billing projects describe $PROJECT_ID
 
 # 4. Enable required APIs
 gcloud services enable cloudbuild.googleapis.com
@@ -198,17 +207,83 @@ export REPO_NAME="terraform-github-sdk-module"  # Must match the repo name from 
 ```bash
 ./setup/service-accounts.sh $PROJECT_ID
 ```
+This script will:
+- Create the terraform-automation service account
+- Grant necessary IAM permissions for Terraform operations
+- Grant Secret Manager Admin permissions to the Cloud Build service account (required for GitHub connection)
 
 #### 3. Create GitHub Token Secret
 ```bash
 ./setup/secrets.sh $PROJECT_ID $GITHUB_TOKEN
 ```
 
-#### 4. Create Infrastructure Management Triggers
+#### 4. Connect Cloud Build to GitHub (Required - One-Time Setup)
+
+Cloud Build needs access to your GitHub repositories through the **1st generation GitHub App** integration. This is a **one-time setup per GitHub organization**.
+
+**Connect GitHub via Cloud Console:**
+
+1. Go to: https://console.cloud.google.com/cloud-build/triggers/connect?project=$PROJECT_ID
+2. Select **"GitHub (Cloud Build GitHub App)"** - NOT "GitHub (Cloud Build GitHub App 2nd gen)"
+3. Authenticate with GitHub and authorize the Cloud Build app
+4. Choose your GitHub organization (`$GITHUB_OWNER`)
+5. **Important:** Select repository access:
+   - **Recommended:** Choose **"All repositories"** for fully automated SDK management
+   - Alternative: Select specific repositories (you'll need to manually add new ones later)
+6. Complete the installation
+
+**Verify Connection:**
+After setup, verify your repository appears in the 1st gen repositories list:
+- Go to: https://console.cloud.google.com/cloud-build/repositories/1st-gen?project=$PROJECT_ID
+- You should see your repository listed there
+
+**Repository Access Strategy:**
+
+- **Option 1: All Repositories (Recommended for SDK Automation)**
+  - Grant access to all current and future repositories
+  - New SDK repositories created by Terraform will automatically have trigger access
+  - No manual steps needed when adding new SDKs
+  - Security is maintained through service account permissions
+
+- **Option 2: Selected Repositories**
+  - Choose specific repositories during setup
+  - To add new repositories later:
+    1. Go to GitHub: https://github.com/organizations/$GITHUB_OWNER/settings/installations
+    2. Find "Google Cloud Build" app
+    3. Click "Configure" and add repositories
+  - More restrictive but requires manual steps for new SDKs
+
+**What This Enables:**
+- Terraform can create triggers for any repository the GitHub App has access to
+- The main infrastructure Terraform can automatically set up triggers for new SDK repositories
+- Triggers are created as global resources (not regional) for 1st gen connections
+
+**Important Notes:**
+- This GitHub App connection is shared across all Cloud Build triggers in your project
+- You only need to set it up once per GitHub organization
+- 1st gen connections create **global** triggers (no region specification needed)
+- The connection will work for both the infrastructure repository and all SDK repositories managed by Terraform
+
+#### 5. Create Infrastructure Management Triggers
+
+After connecting the GitHub App, use Terraform to create the Cloud Build triggers:
+
 ```bash
-# Now that the repository exists in GitHub, create the Cloud Build triggers
-./setup/triggers.sh $PROJECT_ID $GITHUB_OWNER $REPO_NAME
+# Create triggers using Terraform (recommended)
+./setup/create-triggers.sh $PROJECT_ID $GITHUB_OWNER $REPO_NAME
 ```
+
+This script will:
+- Initialize Terraform in the setup directory
+- Create two **global** Cloud Build triggers (1st gen triggers are not regional):
+  - `infra-main-apply`: Auto-applies Terraform changes on push to main
+  - `infra-pr-plan`: Runs Terraform plan on pull requests
+- Use the service account created in step 2 (with full resource name format)
+
+**Troubleshooting:**
+- If you get "Repository mapping does not exist" error, ensure you selected the 1st gen GitHub App, not 2nd gen
+- If you get "Invalid argument" errors, verify the service account exists and the GitHub repository is visible in the 1st gen list
+- The Terraform configuration in `setup/triggers.tf` does NOT use `location` parameter for 1st gen triggers
 
 ### SDK Repository Management (Automated)
 
