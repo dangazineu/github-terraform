@@ -62,10 +62,10 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${SA_EMAIL}" \
   --role="roles/cloudbuild.builds.builder"
 
-# Secret Manager permissions (to read GitHub token)
+# Secret Manager permissions (to read GitHub token and manage IAM policies for secrets)
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/secretmanager.secretAccessor"
+  --role="roles/secretmanager.admin"
 
 # Storage permissions (for Terraform state)
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
@@ -80,6 +80,21 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${SA_EMAIL}" \
   --role="roles/resourcemanager.projectIamAdmin"
+
+# Cloud Scheduler permissions (to manage scheduled jobs)
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/cloudscheduler.admin"
+
+# Pub/Sub permissions (to manage topics for triggers)
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/pubsub.admin"
+
+# Service Account User permissions (to act as service accounts)
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/iam.serviceAccountUser"
 
 echo "Service account setup completed!"
 
