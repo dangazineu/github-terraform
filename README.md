@@ -103,3 +103,5 @@ The pre-commit hook will automatically:
 ## Documentation
 
 For detailed information about the module architecture, use cases, and implementation details, see [SPEC.md](./SPEC.md).
+
+Last updated: 2025-08-12 - State lock issue resolved
