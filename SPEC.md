@@ -313,22 +313,35 @@ This script will:
 
 ### SDK Repository Management (Automated)
 
-#### 1. Initialize Terraform
-```bash
-terraform init
-```
-
-### 2. Set Required Variables (using bootstrap variables)
+The steps below are just for manually reproducing what the Cloud Build configuration is supposed to automate when a change is pushed to the infrastructure repository.
+  
+#### 1. Set Required Variables (using bootstrap variables)
 ```bash
 export TF_VAR_github_token="$GITHUB_TOKEN"
 export TF_VAR_gcp_project_id="$PROJECT_ID"
 export TF_VAR_github_owner="$GITHUB_OWNER"
+export TF_VAR_github_app_id="$GITHUB_APP_ID"
 ```
 
-### 3. Apply Configuration
+#### 2. Validate and Initialize Terraform
 ```bash
-terraform plan
-terraform apply
+# Check formatting (same as Cloud Build)
+terraform fmt -check=true -diff=true
+
+# Initialize with backend
+terraform init
+```
+
+#### 3. Plan and Apply Configuration
+```bash
+# Plan configuration (matching Cloud Build approach)
+terraform plan -out=main.tfplan
+
+# Review the plan
+terraform show main.tfplan
+
+# Apply the plan
+terraform apply main.tfplan
 ```
 
 ### 4. GitHub App Setup and Secret Population
@@ -352,6 +365,7 @@ Create a `terraform.tfvars` file:
 github_token    = "your-github-token-here"
 github_owner    = "your-sdk-org"
 gcp_project_id  = "your-sdk-project-id"
+github_app_id   = "your-github-app-installation-id"
 ```
 
 Or export as environment variables (using bootstrap variables from earlier):
