@@ -3,6 +3,9 @@
 # GitHub App Private Key Rotation Script
 # This script helps rotate the private key for the SDK Automation GitHub App
 # and update the secret in Google Secret Manager
+#
+# SCOPE: This script ONLY handles the GitHub App private key (github-app-private-key secret)
+# NOTE: This script does NOT handle Personal Access Tokens (github-token secret)
 
 set -euo pipefail
 
@@ -172,6 +175,7 @@ main() {
     print_header
     
     print_warning "This script will rotate the GitHub App private key for SDK Automation"
+    print_warning "IMPORTANT: This script does NOT affect Personal Access Tokens (PATs)"
     print_warning "Make sure you have access to the GitHub App settings before proceeding"
     echo
     read -p "Continue? (y/N): " -r
