@@ -1,42 +1,4 @@
-# cloudbuild-pr.yaml - Pull request validation (Simplified)
-# This version uses a pre-built Terraform image and runs a basic validation.
-
+# cloudbuild-pr.yaml - Minimal test to isolate failure
 steps:
-  - name: 'hashicorp/terraform:1.5.7' # Using a specific version is better than latest
-    id: 'terraform-validate'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - |
-        echo "========================================="
-        echo "=== Initializing Terraform...         ==="
-        echo "========================================="
-        # The backend.tf file should configure this bucket
-        terraform init -backend-config="bucket=dgzn-terraform-tfstate"
-
-        echo "========================================="
-        echo "=== Validating Terraform configuration... ==="
-        echo "========================================="
-        terraform validate
-
-        echo "========================================="
-        echo "=== Planning Terraform changes...     ==="
-        echo "========================================="
-        # We remove the -var-file logic for simplicity for now
-        terraform plan
-    env:
-      - 'TF_IN_AUTOMATION=true'
-
-# Use same substitutions and service account
-substitutions:
-  _GITHUB_TOKEN: 'projects/${PROJECT_ID}/secrets/github-token/versions/latest'
-  _GITHUB_OWNER: 'dg-ghtest'
-
-# Temporarily remove custom service account to test if it's a permissions issue
-# serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com'
-
-options:
-  machineType: 'E2_STANDARD_2'
-  logging: CLOUD_LOGGING_ONLY
-
-timeout: '600s'
+  - name: 'ubuntu'
+    args: ['echo', 'Hello from Cloud Build PR validation']
