@@ -79,9 +79,10 @@ fi
 
 # Generate timestamp for display and branch naming
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-# Create Git-safe branch name (replace colons with dashes)
+# Create Git-safe branch name with randomization to avoid collisions
 BRANCH_TIMESTAMP=$(date -u +"%Y-%m-%d-%H-%M-%S")
-BRANCH_NAME="timestamp-update-${BRANCH_TIMESTAMP}"
+RANDOM_SUFFIX=$(shuf -i 1000-9999 -n 1 2>/dev/null || echo $RANDOM)
+BRANCH_NAME="timestamp-update-${BRANCH_TIMESTAMP}-${RANDOM_SUFFIX}"
 
 # Extract repo name from the current directory or environment
 REPO_NAME=$(basename "${PWD}")
@@ -127,7 +128,11 @@ if [[ -n "${EXISTING_PRS}" ]]; then
     done
 fi
 
-echo "Creating new branch for fresh PR"
+echo "Creating new branch for fresh PR: ${BRANCH_NAME}"
+
+# Delete the remote branch if it exists (cleanup from failed previous runs)
+git push origin ":${BRANCH_NAME}" 2>/dev/null || true
+
 git checkout -b "${BRANCH_NAME}"
 
 # Create or update timestamp.txt file
