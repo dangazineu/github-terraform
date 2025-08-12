@@ -32,7 +32,6 @@ substitutions:
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com'
 
 options:
-  machineType: 'E2_STANDARD_2'
   logging: CLOUD_LOGGING_ONLY
 
 timeout: '600s'
