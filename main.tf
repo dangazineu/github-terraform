@@ -115,7 +115,8 @@ locals {
       ]
     }
 
- "test-sdk" = {
+    # Test SDK repository
+    "test-sdk" = {
       description       = "test AI SDK"
       schedule_time     = "03:00" # 3 AM EST
       schedule_timezone = "America/New_York"
@@ -126,7 +127,6 @@ locals {
         "notebooks/ @${var.github_owner}/docs-team"
       ]
     }
-  }
 }
 
 # Create shared Pub/Sub topic for Cloud Build triggers
