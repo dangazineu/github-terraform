@@ -76,6 +76,8 @@ steps:
 
         # Plan the configuration
         echo "=== Planning Terraform configuration ==="
+        # Set the SDK Automation GitHub App ID
+        export TF_VAR_sdk_automation_github_app_id="1770057"
         # Use -var-file only if terraform.tfvars exists
         if [ -f terraform.tfvars ]; then
           terraform plan -out=main.tfplan -var-file=terraform.tfvars
