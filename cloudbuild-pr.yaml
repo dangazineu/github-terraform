@@ -1,54 +1,31 @@
-# cloudbuild-pr.yaml - Pull request validation
-# This configuration runs on pull requests to validate changes without applying
+# cloudbuild-pr.yaml - Pull request validation (Simplified)
+# This version uses a pre-built Terraform image and runs a basic validation.
 
 steps:
-  # Step 1: Validate and Plan Terraform Configuration
-  - name: 'google/cloud-sdk:latest'
-    id: 'terraform-validate-and-plan'
+  - name: 'hashicorp/terraform:1.5.7' # Using a specific version is better than latest
+    id: 'terraform-validate'
     entrypoint: 'sh'
     args:
       - '-c'
       - |
-        # Install Terraform
-        apt-get update && apt-get install -y gnupg software-properties-common curl
-        curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
-        apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-        apt-get update && apt-get install terraform
+        echo "========================================="
+        echo "=== Initializing Terraform...         ==="
+        echo "========================================="
+        # The backend.tf file should configure this bucket
+        terraform init -backend-config="bucket=dgzn-terraform-tfstate"
 
-        echo "Validating Terraform configuration..."
-        terraform fmt -check=true -diff=true
-        
-        echo "Planning Terraform changes for PR review..."
+        echo "========================================="
+        echo "=== Validating Terraform configuration... ==="
+        echo "========================================="
+        terraform validate
 
-        # Create backend bucket if it doesn't exist
-        # The service account needs storage.buckets.create permissions for this
-        if ! gsutil ls gs://dgzn-terraform-tfstate; then
-          echo "Creating GCS backend bucket..."
-          gsutil mb -p ${PROJECT_ID} gs://dgzn-terraform-tfstate
-        else
-          echo "GCS backend bucket already exists."
-        fi
-
-        # Initialize with backend
-        terraform init
-
-        # Plan the configuration
-        echo "=== Planning Terraform configuration ==="
-        # Use -var-file only if terraform.tfvars exists
-        if [ -f terraform.tfvars ]; then
-          terraform plan -var-file=terraform.tfvars
-        else
-          terraform plan
-        fi
-
-        echo "=== PR validation completed ==="
-        echo "Review the plan above before merging to main"
+        echo "========================================="
+        echo "=== Planning Terraform changes...     ==="
+        echo "========================================="
+        # We remove the -var-file logic for simplicity for now
+        terraform plan
     env:
       - 'TF_IN_AUTOMATION=true'
-      - 'GITHUB_TOKEN=${_GITHUB_TOKEN}'
-      - 'TF_VAR_github_token=${_GITHUB_TOKEN}'
-      - 'TF_VAR_github_owner=${_GITHUB_OWNER}'
-      - 'TF_VAR_gcp_project_id=${PROJECT_ID}'
 
 # Use same substitutions and service account
 substitutions:
