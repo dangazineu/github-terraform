@@ -1,0 +1,126 @@
+# cloudbuild.yaml - Self-managing Cloud Build configuration
+# This file manages the repository that contains the GitHub/Cloud Build module
+
+steps:
+  # Step 1: Validate Terraform syntax
+  - name: 'hashicorp/terraform:1.5'
+    id: 'terraform-validate'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        echo "Validating Terraform configuration..."
+        terraform fmt -check=true -diff=true
+        terraform init -backend=false
+        terraform validate
+    env:
+      - 'TF_IN_AUTOMATION=true'
+
+  # Step 2: Terraform Plan (for all configurations)
+  - name: 'hashicorp/terraform:1.5'
+    id: 'terraform-plan'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        echo "Planning Terraform changes..."
+
+        # Initialize with backend
+        terraform init
+
+        # Plan the configuration
+        echo "=== Planning Terraform configuration ==="
+        terraform plan -out=main.tfplan -var-file=terraform.tfvars
+
+        # Show plan
+        terraform show main.tfplan
+    env:
+      - 'TF_IN_AUTOMATION=true'
+      - 'GITHUB_TOKEN=${_GITHUB_TOKEN}'
+      - 'TF_VAR_github_token=${_GITHUB_TOKEN}'
+      - 'TF_VAR_github_owner=${_GITHUB_OWNER}'
+      - 'TF_VAR_gcp_project_id=${PROJECT_ID}'
+
+  # Step 3: Apply changes (only on main branch)
+  - name: 'hashicorp/terraform:1.5'
+    id: 'terraform-apply'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        if [ "$BRANCH_NAME" = "main" ]; then
+          echo "Applying Terraform changes to main branch..."
+
+          # Apply configuration
+          echo "=== Applying Terraform configuration ==="
+          terraform apply -auto-approve main.tfplan
+
+          echo "Terraform apply completed successfully"
+        else
+          echo "Skipping apply - not on main branch (current: $BRANCH_NAME)"
+        fi
+    env:
+      - 'TF_IN_AUTOMATION=true'
+      - 'GITHUB_TOKEN=${_GITHUB_TOKEN}'
+      - 'TF_VAR_github_token=${_GITHUB_TOKEN}'
+      - 'TF_VAR_github_owner=${_GITHUB_OWNER}'
+      - 'TF_VAR_gcp_project_id=${PROJECT_ID}'
+
+  # Step 4: Output results and next steps
+  - name: 'hashicorp/terraform:1.5'
+    id: 'terraform-output'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        if [ "$BRANCH_NAME" = "main" ]; then
+          echo "=== Terraform Outputs ==="
+          terraform output -json > /workspace/terraform-outputs.json
+
+          echo "=== Repository Summary ==="
+          terraform output repository_summary
+
+          echo "=== Infrastructure Summary ==="
+          terraform output infrastructure_summary
+
+          echo "=== Next Steps ==="
+          echo "Only remaining manual step - Create secrets in Secret Manager:"
+          terraform output secret_setup_commands
+
+          echo "=== Build completed successfully ==="
+        fi
+    env:
+      - 'TF_IN_AUTOMATION=true'
+
+# Substitutions for variables
+substitutions:
+  _GITHUB_TOKEN: 'projects/${PROJECT_ID}/secrets/github-token/versions/latest'
+  _GITHUB_OWNER: 'my-sdk-org'  # Replace with your SDK GitHub org
+
+# Use a service account with appropriate permissions
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/terraform-automation@${PROJECT_ID}.iam.gserviceaccount.com'
+
+# Build options
+options:
+  # Use a machine with more resources for Terraform
+  machineType: 'E2_STANDARD_2'
+
+  # Enable detailed logging
+  logging: CLOUD_LOGGING_ONLY
+  logStreamingOption: STREAM_ON
+
+  # Set working directory
+  env:
+    - 'TF_IN_AUTOMATION=true'
+    - 'TF_INPUT=false'
+
+# Artifacts to store
+artifacts:
+  objects:
+    location: 'gs://${PROJECT_ID}-terraform-artifacts'
+    paths:
+      - 'terraform-outputs.json'
+      - '*.tfplan'
+
+# Build timeout (20 minutes)
+timeout: '1200s'
