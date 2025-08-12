@@ -21,7 +21,7 @@ See [SECURITY.md](./SECURITY.md) for complete security procedures and incident r
 
 2. **Set Required Variables**
    ```bash
-   export TF_VAR_github_token="your-github-token"
+   export TF_VAR_github_token="your-sdk-github-token"
    export TF_VAR_gcp_project_id="your-sdk-project"
    export TF_VAR_github_owner="your-sdk-org"
    ```
@@ -61,7 +61,7 @@ terraform-github-sdk-module/
 │
 └── setup/                              # Bootstrap setup scripts (run once)
     ├── service-accounts.sh             # Creates terraform-automation service account
-    ├── secrets.sh                      # Creates github-token secret for Terraform
+    ├── secrets.sh                      # Creates sdk-github-token secret for Terraform
     └── triggers.sh                     # Creates triggers for this infrastructure repo
 ```
 

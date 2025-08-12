@@ -5,7 +5,7 @@
 # and update the secret in Google Secret Manager
 #
 # SCOPE: This script ONLY handles the GitHub App private key (github-app-private-key secret)
-# NOTE: This script does NOT handle Personal Access Tokens (github-token secret)
+# NOTE: This script does NOT handle Personal Access Tokens (sdk-github-token secret)
 
 set -euo pipefail
 
