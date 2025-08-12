@@ -236,15 +236,15 @@ resource "google_cloudbuild_trigger" "repo_trigger" {
 }
 
 
-# Create Cloud Scheduler job for demo execution (every 5 minutes)
+# Create Cloud Scheduler job for demo execution (every hour)
 # Production schedule would be: "0 ${split(":", var.schedule_time)[1]} ${split(":", var.schedule_time)[0]} * * 0"
 resource "google_cloud_scheduler_job" "demo_trigger" {
   project     = var.gcp_project_id
   name        = "${var.repo_name}-demo-schedule"
-  description = "Demo trigger for ${var.repo_name} SDK automation (every 5 minutes)"
+  description = "Demo trigger for ${var.repo_name} SDK automation (every hour)"
   region      = var.scheduler_region
   
-  schedule  = "*/5 * * * *"  # Demo: every 5 minutes
+  schedule  = "0 * * * *"  # Demo: every hour
   time_zone = var.schedule_timezone
 
   pubsub_target {

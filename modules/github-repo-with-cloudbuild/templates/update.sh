@@ -135,13 +135,17 @@ git push origin ":${BRANCH_NAME}" 2>/dev/null || true
 
 git checkout -b "${BRANCH_NAME}"
 
-# Create or update timestamp.txt file
+# Create or update timestamp.txt file with both template change time and PR creation time
 echo "Updating timestamp file..."
-echo "${TIMESTAMP}" > timestamp.txt
+TEMPLATE_CHANGE_TIME="2025-08-12T16:30:00Z"  # Time when template schedule was changed from 5 minutes to 1 hour
+cat > timestamp.txt << EOF
+Template changed: ${TEMPLATE_CHANGE_TIME}
+PR created: ${TIMESTAMP}
+EOF
 
 # Add and commit the changes
 git add timestamp.txt
-git commit -m "Update timestamp to ${TIMESTAMP}"
+git commit -m "Update timestamp - Template changed: ${TEMPLATE_CHANGE_TIME}, PR created: ${TIMESTAMP}"
 
 # Push the branch
 echo "Pushing branch ${BRANCH_NAME}..."
