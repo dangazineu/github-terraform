@@ -2,6 +2,16 @@
 
 This repository provides a comprehensive Terraform solution for managing SDK GitHub repositories with integrated Google Cloud Build configurations. Designed specifically for SDK organizations, it includes a reusable module, production-ready implementations, and self-managing CI/CD infrastructure that automatically applies changes when code is pushed to the main branch.
 
+## 🔒 Security Notice
+
+**IMPORTANT**: This repository manages GitHub App private keys for SDK automation. If you suspect a key has been exposed:
+
+```bash
+./rotate-github-app-key.sh
+```
+
+See [SECURITY.md](./SECURITY.md) for complete security procedures and incident response.
+
 ## Quick Start
 
 1. **Initialize Terraform**

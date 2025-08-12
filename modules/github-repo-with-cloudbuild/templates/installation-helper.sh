@@ -231,6 +231,70 @@ generate_secret_commands() {
     done
 }
 
+# Test if a GitHub App private key is working
+test_key() {
+    local app_id="$1"
+    local private_key_path="$2"
+    
+    echo "Testing GitHub App private key..." >&2
+    echo "App ID: $app_id" >&2
+    
+    # Check if private key file exists
+    if [[ ! -f "$private_key_path" ]]; then
+        echo "ERROR: Private key file not found: $private_key_path" >&2
+        return 1
+    fi
+    
+    # Verify it's a valid PEM file
+    if ! grep -q "BEGIN RSA PRIVATE KEY\|BEGIN PRIVATE KEY" "$private_key_path"; then
+        echo "ERROR: File does not appear to be a valid private key" >&2
+        return 1
+    fi
+    
+    # Try to generate a JWT
+    echo "Generating JWT..." >&2
+    local jwt=$(generate_github_app_jwt "$app_id" "$private_key_path" 2>/dev/null)
+    
+    if [[ $? -ne 0 || -z "$jwt" ]]; then
+        echo "ERROR: Failed to generate JWT. Check app ID and private key." >&2
+        return 1
+    fi
+    
+    # Try to list installations
+    echo "Testing GitHub API access..." >&2
+    local response=$(curl -s -w "\n%{http_code}" \
+        -H "Authorization: Bearer $jwt" \
+        -H "Accept: application/vnd.github.v3+json" \
+        "https://api.github.com/app/installations")
+    
+    local http_code=$(echo "$response" | tail -n1)
+    local body=$(echo "$response" | head -n -1)
+    
+    case "$http_code" in
+        "200")
+            local count=$(echo "$body" | grep -c '"id":' || echo "0")
+            echo "✅ SUCCESS: Key is valid and working!" >&2
+            echo "   Found $count installation(s)" >&2
+            return 0
+            ;;
+        "401")
+            echo "❌ ERROR: Authentication failed (401)" >&2
+            echo "   The private key may be invalid or revoked" >&2
+            return 1
+            ;;
+        "403")
+            echo "❌ ERROR: Access forbidden (403)" >&2
+            echo "   Check if the GitHub App is properly configured" >&2
+            return 1
+            ;;
+        *)
+            echo "❌ ERROR: Unexpected response (HTTP $http_code)" >&2
+            echo "   Response: $body" >&2
+            return 1
+            ;;
+    esac
+}
+
 # Main function for command-line usage
 main() {
     local command="$1"
@@ -265,14 +329,22 @@ main() {
             fi
             generate_secret_commands "$1" "$2" "$3" "$4"
             ;;
+        "test-key")
+            if [[ $# -ne 2 ]]; then
+                echo "Usage: $0 test-key <app_id> <private_key_path>" >&2
+                exit 1
+            fi
+            test_key "$1" "$2"
+            ;;
         *)
-            echo "Usage: $0 {list|summary|find|generate-secrets} [args...]" >&2
+            echo "Usage: $0 {list|summary|find|generate-secrets|test-key} [args...]" >&2
             echo "" >&2
             echo "Commands:" >&2
             echo "  list <app_id> <private_key_path>                     - List all installations" >&2
             echo "  summary <app_id> <private_key_path>                  - Print installation summary" >&2
             echo "  find <app_id> <private_key_path> <owner/repo>        - Find installation ID for repository" >&2
             echo "  generate-secrets <app_id> <private_key_path> <project_id> '<repos>' - Generate secret commands" >&2
+            echo "  test-key <app_id> <private_key_path>                 - Test if private key is working" >&2
             exit 1
             ;;
     esac
