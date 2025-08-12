@@ -2,31 +2,31 @@
 # This file manages the repository that contains the GitHub/Cloud Build module
 
 steps:
-  # Step 1: Validate Terraform syntax
-  - name: 'hashicorp/terraform:1.5'
-    id: 'terraform-validate'
+  # Step 1: Validate, Plan and Apply Terraform Configuration
+  - name: 'google/cloud-sdk:latest'
+    id: 'terraform-full'
     entrypoint: 'sh'
     args:
       - '-c'
       - |
+        # Install Terraform
+        apt-get update && apt-get install -y gnupg software-properties-common curl
+        curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
+        apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+        apt-get update && apt-get install terraform
+
         echo "Validating Terraform configuration..."
         terraform fmt -check=true -diff=true
-        terraform init -backend=false
-        terraform validate
-    env:
-      - 'TF_IN_AUTOMATION=true'
 
-  # Step 2: Terraform Plan (for all configurations)
-  - name: 'hashicorp/terraform:1.5'
-    id: 'terraform-plan'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - |
         echo "Planning Terraform changes..."
 
         # Create backend bucket if it doesn't exist
-        gsutil mb -p ${PROJECT_ID} gs://dgzn-terraform-tfstate || echo "Bucket already exists"
+        if ! gsutil ls gs://dgzn-terraform-tfstate; then
+          echo "Creating GCS backend bucket..."
+          gsutil mb -p ${PROJECT_ID} gs://dgzn-terraform-tfstate
+        else
+          echo "GCS backend bucket already exists."
+        fi
 
         # Initialize with backend
         terraform init
@@ -42,20 +42,8 @@ steps:
 
         # Show plan
         terraform show main.tfplan
-    env:
-      - 'TF_IN_AUTOMATION=true'
-      - 'GITHUB_TOKEN=${_GITHUB_TOKEN}'
-      - 'TF_VAR_github_token=${_GITHUB_TOKEN}'
-      - 'TF_VAR_github_owner=${_GITHUB_OWNER}'
-      - 'TF_VAR_gcp_project_id=${PROJECT_ID}'
 
-  # Step 3: Apply changes (only on main branch)
-  - name: 'hashicorp/terraform:1.5'
-    id: 'terraform-apply'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - |
+        # Apply changes (only on main branch)
         if [ "$BRANCH_NAME" = "main" ]; then
           echo "Applying Terraform changes to main branch..."
 
@@ -74,14 +62,23 @@ steps:
       - 'TF_VAR_github_owner=${_GITHUB_OWNER}'
       - 'TF_VAR_gcp_project_id=${PROJECT_ID}'
 
-  # Step 4: Output results and next steps
-  - name: 'hashicorp/terraform:1.5'
+  # Step 2: Output results and next steps (only for main branch)
+  - name: 'google/cloud-sdk:latest'
     id: 'terraform-output'
     entrypoint: 'sh'
     args:
       - '-c'
       - |
         if [ "$BRANCH_NAME" = "main" ]; then
+          # Install Terraform (needed for terraform output)
+          apt-get update && apt-get install -y gnupg software-properties-common curl
+          curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
+          apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+          apt-get update && apt-get install terraform
+
+          # Initialize to read state
+          terraform init
+
           echo "=== Terraform Outputs ==="
           terraform output -json > /workspace/terraform-outputs.json
 

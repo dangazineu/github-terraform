@@ -2,31 +2,32 @@
 # This configuration runs on pull requests to validate changes without applying
 
 steps:
-  # Step 1: Validate Terraform syntax
-  - name: 'hashicorp/terraform:1.5'
-    id: 'terraform-validate'
+  # Step 1: Validate and Plan Terraform Configuration
+  - name: 'google/cloud-sdk:latest'
+    id: 'terraform-validate-and-plan'
     entrypoint: 'sh'
     args:
       - '-c'
       - |
+        # Install Terraform
+        apt-get update && apt-get install -y gnupg software-properties-common curl
+        curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
+        apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+        apt-get update && apt-get install terraform
+
         echo "Validating Terraform configuration..."
         terraform fmt -check=true -diff=true
-        terraform init -backend=false
-        terraform validate
-    env:
-      - 'TF_IN_AUTOMATION=true'
-
-  # Step 2: Terraform Plan (show changes without applying)
-  - name: 'hashicorp/terraform:1.5'
-    id: 'terraform-plan'
-    entrypoint: 'sh'
-    args:
-      - '-c'
-      - |
+        
         echo "Planning Terraform changes for PR review..."
 
         # Create backend bucket if it doesn't exist
-        gsutil mb -p ${PROJECT_ID} gs://dgzn-terraform-tfstate || echo "Bucket already exists"
+        # The service account needs storage.buckets.create permissions for this
+        if ! gsutil ls gs://dgzn-terraform-tfstate; then
+          echo "Creating GCS backend bucket..."
+          gsutil mb -p ${PROJECT_ID} gs://dgzn-terraform-tfstate
+        else
+          echo "GCS backend bucket already exists."
+        fi
 
         # Initialize with backend
         terraform init
