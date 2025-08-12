@@ -1,4 +1,14 @@
-# cloudbuild-pr.yaml - Minimal test to isolate failure
+# cloudbuild-pr.yaml - Testing with terraform
 steps:
-  - name: 'ubuntu'
-    args: ['echo', 'Hello from Cloud Build PR validation']
+  - name: 'hashicorp/terraform:1.5.7'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        echo "Testing terraform version..."
+        terraform version
+        echo "Listing files..."
+        ls -la
+        echo "Checking terraform syntax..."
+        terraform fmt -check=true -diff=true
+        echo "Done!"
