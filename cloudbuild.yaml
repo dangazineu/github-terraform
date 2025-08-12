@@ -1,5 +1,13 @@
 # cloudbuild.yaml - Self-managing Cloud Build configuration
 # This file manages the repository that contains the GitHub/Cloud Build module
+#
+# AUTHENTICATION APPROACH:
+# This build uses Cloud Build's service account mechanism for GCP authentication:
+# 1. The 'serviceAccount' field assigns terraform-automation@PROJECT_ID.iam.gserviceaccount.com
+# 2. Cloud Build automatically generates temporary access tokens for this service account
+# 3. The google/cloud-sdk:latest image automatically uses these tokens via Application Default Credentials (ADC)
+# 4. Both gcloud/gsutil commands and Terraform Google provider authenticate seamlessly
+# 5. No manual token management needed - Cloud Build handles token lifecycle securely
 
 steps:
   # Step 1: Validate, Plan and Apply Terraform Configuration
