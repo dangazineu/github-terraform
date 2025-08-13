@@ -16,6 +16,7 @@ terraform {
 # Configure the GitHub provider
 provider "github" {
   token = var.github_token
+  owner = var.github_owner
 }
 
 # Configure the Google provider
